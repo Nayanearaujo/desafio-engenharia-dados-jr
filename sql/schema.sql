@@ -49,6 +49,17 @@ CREATE TABLE silver_rejeitados (
     rejeitado_em    TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS pipeline_execucoes (
+    run_id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    inicio_execucao     TEXT    NOT NULL,
+    fim_execucao        TEXT    NOT NULL,
+    status              TEXT    NOT NULL,
+    modo_geracao        TEXT    NOT NULL DEFAULT 'regerado',
+    registros_bronze    INTEGER NOT NULL DEFAULT 0,
+    registros_silver    INTEGER NOT NULL DEFAULT 0,
+    registros_rejeitados INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE VIEW IF NOT EXISTS resumo_pedidos AS
     SELECT
         p.id                                         AS pedido_id,

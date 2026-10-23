@@ -5,19 +5,21 @@ Cada regra possui funcao isolada para facilitar testes unitarios e auditoria.
 
 import csv
 import logging
+import math
 import os
 import re
 import sqlite3
 from datetime import date
 from typing import Any
 
+from config import DATA_MAX_NEGOCIO, DATA_MIN_NEGOCIO, PASTA_EXPORTS_PADRAO
+
 logger = logging.getLogger(__name__)
 
 STATUS_PEDIDO_VALIDOS = {"pago", "pendente", "cancelado"}
 _REGEX_EMAIL = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
-
-_DIR_RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PASTA_EXPORTS_PADRAO = os.path.join(_DIR_RAIZ, "exports")
+_DATA_MIN = date.fromisoformat(DATA_MIN_NEGOCIO)
+_DATA_MAX = date.fromisoformat(DATA_MAX_NEGOCIO)
 
 
 def validar_obrigatorios(
@@ -34,12 +36,15 @@ def validar_obrigatorios(
 def validar_chave_duplicada(
     valor_id: Any, ids_vistos: set[int]
 ) -> tuple[bool, str | None]:
-    """Verifica se o ID e um inteiro positivo e se ainda nao apareceu no lote."""
-    try:
-        id_int = int(str(valor_id).strip())
-        if id_int <= 0:
-            return False, "chave_invalida"
-    except (ValueError, TypeError):
+    """
+    Verifica se o ID e um inteiro positivo em formato canonico e se ainda nao apareceu no lote.
+    Nota: a funcao apenas valida; o chamador adiciona o ID ao conjunto apos aprovar todas as regras.
+    """
+    texto = str(valor_id or "").strip()
+    if not texto.isdigit():
+        return False, "chave_invalida"
+    id_int = int(texto)
+    if id_int <= 0:
         return False, "chave_invalida"
 
     if id_int in ids_vistos:
@@ -50,10 +55,13 @@ def validar_chave_duplicada(
 def validar_numero_positivo(
     valor: Any, nome_campo: str = "valor"
 ) -> tuple[bool, str | None]:
-    """Verifica se o valor numerico (preco ou quantidade) e estritamente maior que zero."""
+    """Verifica se o valor numerico finito (preco ou quantidade) e estritamente maior que zero."""
     try:
         numero = float(str(valor).strip())
     except (ValueError, TypeError):
+        return False, f"valor_nao_numerico:{nome_campo}"
+
+    if not math.isfinite(numero):
         return False, f"valor_nao_numerico:{nome_campo}"
 
     if numero <= 0:
@@ -98,12 +106,15 @@ def validar_email(
 def validar_data_iso(
     valor_data: Any, nome_campo: str = "data"
 ) -> tuple[bool, str | None]:
-    """Verifica se a string representa uma data ISO valida (YYYY-MM-DD)."""
+    """Verifica se a string representa uma data ISO valida dentro da janela temporal de negocio."""
     texto = str(valor_data or "").strip()
     try:
-        date.fromisoformat(texto)
+        data_obj = date.fromisoformat(texto)
     except ValueError:
         return False, f"data_invalida:{nome_campo}"
+
+    if not (_DATA_MIN <= data_obj <= _DATA_MAX):
+        return False, f"data_fora_janela_negocio:{nome_campo}"
     return True, None
 
 

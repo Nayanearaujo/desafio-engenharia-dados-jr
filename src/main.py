@@ -55,7 +55,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--pipeline",
         action="store_true",
-        help="Executa a carga completa da Arquitetura Medalha (Faker -> Bronze -> Silver -> Gold) sem menu interativo.",
+        help="Gera CSVs sinteticos em data/raw/ e executa a carga completa (Faker -> Bronze -> Silver -> Gold).",
+    )
+    parser.add_argument(
+        "--reprocessar",
+        action="store_true",
+        help="Reprocessa os CSVs ja existentes em data/raw/ (Bronze -> Silver -> Gold) sem regerar dados sinteticos.",
     )
     parser.add_argument(
         "--demo",
@@ -81,11 +86,12 @@ def _banco_possui_pipeline() -> bool:
 def main(argv: list[str] | None = None) -> None:
     args = _parse_args(argv)
 
-    if args.pipeline:
-        criar_banco()
+    if args.pipeline or args.reprocessar:
+        if not os.path.exists(CAMINHO_BANCO):
+            criar_banco()
         conn = conectar()
         try:
-            run_pipeline(conn=conn)
+            run_pipeline(conn=conn, regerar_csv=not args.reprocessar)
             relatorios.gerar_grafico_faturamento(conn)
         finally:
             conn.close()

@@ -105,7 +105,7 @@ def test_bronze_silver_gold_fluxo_completo_e_quarentena(pipeline_isolado: dict) 
 
 
 def test_idempotencia_pipeline_duas_execucoes(pipeline_isolado: dict) -> None:
-    """Rodar o pipeline duas vezes deve manter exatamente as mesmas contagens."""
+    """Rodar o pipeline duas vezes deve manter exatamente as mesmas contagens e registrar auditoria."""
     conn: sqlite3.Connection = pipeline_isolado["conn"]
     pasta_raw = pipeline_isolado["pasta_raw"]
     pasta_exports = pipeline_isolado["pasta_exports"]
@@ -122,6 +122,13 @@ def test_idempotencia_pipeline_duas_execucoes(pipeline_isolado: dict) -> None:
     assert resumo_1["bronze"] == resumo_2["bronze"]
     assert resumo_1["silver"] == resumo_2["silver"]
     assert len(resumo_1["qualidade"]) == len(resumo_2["qualidade"])
+    assert resumo_1["execucao"]["modo_geracao"] == "regerado"
+    assert resumo_2["execucao"]["modo_geracao"] == "reprocessado"
+
+    historico = queries.historico_execucoes_pipeline(conn)
+    assert len(historico) >= 2
+    assert historico[0]["status"] == "sucesso"
+    assert historico[0]["registros_rejeitados"] == 144
 
 
 def test_kpis_gold_mom_rfm_coorte_cancelamento_e_carta_controle(pipeline_isolado: dict) -> None:
@@ -209,7 +216,12 @@ def test_cli_parse_args_e_clone_limpo_sem_banco(tmp_path: Path, monkeypatch: pyt
     """Testa parsing de flags e execucao do modo 2 (sem --pipeline e sem .db previo)."""
     args_pipe = main._parse_args(["--pipeline"])
     assert args_pipe.pipeline is True
+    assert args_pipe.reprocessar is False
     assert args_pipe.demo is False
+
+    args_reproc = main._parse_args(["--reprocessar"])
+    assert args_reproc.reprocessar is True
+    assert args_reproc.pipeline is False
 
     args_demo = main._parse_args(["--demo"])
     assert args_demo.demo is True
