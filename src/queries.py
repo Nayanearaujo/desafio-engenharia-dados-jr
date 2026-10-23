@@ -281,3 +281,65 @@ def ranking_window_function(conn: sqlite3.Connection) -> list[Any]:
     return cursor.fetchall()
 
 
+def receita_mensal_mom(conn: sqlite3.Connection) -> list[Any]:
+    """Consulta a view gold_receita_mensal com crescimento MoM (LAG) e media movel 3M."""
+    cursor = conn.execute("SELECT * FROM gold_receita_mensal ORDER BY mes")
+    return cursor.fetchall()
+
+
+def segmentacao_rfm(conn: sqlite3.Connection) -> list[Any]:
+    """Consulta a view gold_rfm_clientes com scores R, F, M e segmento atribuido."""
+    cursor = conn.execute("SELECT * FROM gold_rfm_clientes ORDER BY valor_monetario DESC")
+    return cursor.fetchall()
+
+
+def resumo_segmentos_rfm(conn: sqlite3.Connection) -> list[Any]:
+    """Agrega contagem de clientes, frequencia media e receita total por segmento RFM."""
+    cursor = conn.execute(
+        """
+        SELECT
+            segmento_rfm,
+            COUNT(cliente_id) AS total_clientes,
+            ROUND(AVG(recencia_dias), 1) AS recencia_media_dias,
+            ROUND(AVG(frequencia_pedidos), 1) AS frequencia_media,
+            ROUND(SUM(valor_monetario), 2) AS receita_segmento,
+            ROUND(100.0 * SUM(valor_monetario) / NULLIF(SUM(SUM(valor_monetario)) OVER (), 0), 1) AS share_receita_pct
+        FROM gold_rfm_clientes
+        GROUP BY segmento_rfm
+        ORDER BY receita_segmento DESC
+        """
+    )
+    return cursor.fetchall()
+
+
+def retencao_coorte(conn: sqlite3.Connection) -> list[Any]:
+    """Consulta a matriz de retencao por coorte mensal na view gold_coorte_retencao."""
+    cursor = conn.execute(
+        "SELECT * FROM gold_coorte_retencao ORDER BY coorte_mes, indice_mes"
+    )
+    return cursor.fetchall()
+
+
+def taxa_recompra_global(conn: sqlite3.Connection) -> Any:
+    """Consulta a taxa de recompra global na view gold_taxa_recompra."""
+    cursor = conn.execute("SELECT * FROM gold_taxa_recompra")
+    return cursor.fetchone()
+
+
+def cancelamento_categoria_mes(conn: sqlite3.Connection) -> list[Any]:
+    """Consulta a taxa de cancelamento e receita perdida por categoria e mes."""
+    cursor = conn.execute(
+        "SELECT * FROM gold_cancelamento_categoria_mes ORDER BY mes DESC, taxa_cancelamento_pct DESC"
+    )
+    return cursor.fetchall()
+
+
+def resumo_qualidade_dados(conn: sqlite3.Connection) -> list[Any]:
+    """Consulta a contagem de registros rejeitados na camada Silver por tabela e motivo."""
+    cursor = conn.execute(
+        "SELECT * FROM gold_qualidade_resumo ORDER BY total_rejeitados DESC, tabela_origem"
+    )
+    return cursor.fetchall()
+
+
+
