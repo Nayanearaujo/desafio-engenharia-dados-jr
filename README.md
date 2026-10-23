@@ -7,11 +7,9 @@
 
 ## 1. Sobre o Projeto e Tecnologias Utilizadas
 
-Neste projeto, construí e evoluí um pipeline de dados de ponta a ponta e um painel analítico para a **Loja Digital**, um e-commerce de produtos digitais voltado à área de tecnologia (cursos, e-books e templates).
+**Objetivo:** construir um pipeline de dados de ponta a ponta e um painel analítico para a **Loja Digital**, um e-commerce de produtos digitais da área de tecnologia (cursos, e-books e templates), em Python e SQLite.
 
-A versão inicial atendia aos requisitos do Desafio Final da Trilha de Engenharia de Dados Júnior: aplicação em Python e SQLite com menu interativo no terminal (opções 1 a 14), modelagem relacional, consultas SQL (`JOIN`, `GROUP BY`, `HAVING`, `Subquery`, `CTE`, `Window Functions` e `View`) e 14 testes unitários.
-
-Para evoluir a solução, mantendo a execução local simples e 100% compatível com os testes originais, implementei uma **Arquitetura Medalha (Bronze, Silver e Gold)**, com separação explícita entre geração sintética (`--pipeline`) e reprocessamento ETL (`--reprocessar`), quarentena auditável de registros inválidos (`silver_rejeitados`), histórico persistido de execuções (`pipeline_execucoes`) e camada analítica Gold reconciliada.
+A entrega atende aos requisitos do Desafio Final da Trilha de Engenharia de Dados Júnior (banco relacional, consultas SQL, menu no terminal e testes) e evolui a solução com uma **Arquitetura Medalha (Bronze, Silver e Gold)**. Os detalhes de cada camada, das regras de qualidade e dos indicadores estão nas seções seguintes; o quadro abaixo resume as tecnologias empregadas.
 
 | Camada / Componente | Tecnologias e Recursos Aplicados |
 |---|---|
