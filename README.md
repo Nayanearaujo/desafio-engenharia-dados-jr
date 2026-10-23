@@ -1,6 +1,6 @@
 # Loja Digital: Pipeline em Arquitetura Medalha e Controle Estatístico de Processo
 
-![CI - Qualidade e Testes](https://github.com/Nayanearaujo/desafio-engenharia-dados-jr/actions/workflows/ci.yml/badge.svg)
+[![CI - Qualidade e Testes](https://github.com/Nayanearaujo/desafio-engenharia-dados-jr/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Nayanearaujo/desafio-engenharia-dados-jr/actions/workflows/ci.yml)
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue)
 ![SQLite 3](https://img.shields.io/badge/Database-SQLite%203-003B57)
 ![Code Style: Ruff](https://img.shields.io/badge/Code%20Style-Ruff-261230)
