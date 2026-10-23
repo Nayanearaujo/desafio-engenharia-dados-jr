@@ -24,6 +24,7 @@ __pycache__/
 *.swp
 *.swo
 
-# Logs e imagens geradas
+# Logs e exportacoes temporarias
 *.log
-*.png
+exports/
+grafico_faturamento.png

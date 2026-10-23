@@ -139,3 +139,22 @@ def test_inserir_produto_cadastra_corretamente(conn):
     produtos = queries.listar_produtos(conn)
     assert len(produtos) == 8
 
+
+def test_calcular_kpis_executivos(conn):
+    """Deve calcular receita paga, ticket medio, LTV e taxas de conversao."""
+    kpis = queries.calcular_kpis_executivos(conn)
+    assert kpis["total_pedidos"] == 8
+    assert kpis["receita_paga"] == 1141.00
+    assert kpis["receita_pendente"] == 425.00
+    assert kpis["taxa_conversao_pct"] == 62.5
+
+
+def test_ranking_window_function_pareto(conn):
+    """Deve calcular posicao no ranking, share % e acumulado Pareto com Window Functions."""
+    ranking = queries.ranking_window_function(conn)
+    assert len(ranking) == 7
+    assert ranking[0]["posicao_ranking"] == 1
+    assert ranking[0]["produto"] == "Fundamentos de IA com Python"
+    assert ranking[-1]["pareto_acumulado_pct"] == 100.0
+
+

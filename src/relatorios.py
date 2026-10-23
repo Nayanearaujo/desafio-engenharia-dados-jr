@@ -2,9 +2,11 @@
 Formatacao e exibicao dos relatorios no terminal.
 """
 
+import csv
 import os
 import sqlite3
 from queries import (
+    calcular_kpis_executivos,
     clientes_acima_de_meta,
     desempenho_produtos_cte,
     faturamento_por_categoria,
@@ -15,6 +17,7 @@ from queries import (
     pedidos_detalhados,
     produtos_acima_da_media,
     produtos_mais_vendidos,
+    ranking_window_function,
     resumo_por_cliente,
 )
 
@@ -288,17 +291,55 @@ def cadastrar_produto(conn: sqlite3.Connection) -> None:
     print(f"\n  Produto '{nome}' cadastrado com sucesso (ID: {novo_id}).\n")
 
 
-def gerar_grafico_faturamento(conn: sqlite3.Connection) -> None:
-    """Exibe grafico de faturamento por categoria e salva imagem PNG com matplotlib."""
-    _cabecalho("Grafico de Faturamento por Categoria")
-    linhas = faturamento_por_categoria(conn)
+def relatorio_kpis_pareto(conn: sqlite3.Connection) -> None:
+    """Exibe indicadores executivos (KPIs) e curva ABC/Pareto com Window Functions."""
+    _cabecalho("KPIs Executivos e Curva de Pareto (Window Functions)")
+    kpis = calcular_kpis_executivos(conn)
 
+    if kpis:
+        print(f"  Receita Confirmada (Paga) : R$ {kpis['receita_paga']:>8.2f}")
+        print(f"  Receita em Aberto         : R$ {kpis['receita_pendente']:>8.2f}")
+        print(f"  Ticket Medio por Pedido   : R$ {kpis['ticket_medio_pedido']:>8.2f}")
+        print(f"  LTV Medio por Cliente     : R$ {kpis['ltv_medio_cliente']:>8.2f}")
+        print(f"  Taxa de Conversao (Pagos) :    {kpis['taxa_conversao_pct']:>7.1f}%")
+        print(f"  Taxa de Cancelamento      :    {kpis['taxa_cancelamento_pct']:>7.1f}%")
+        print(f"  {_linha('-', 61)}")
+
+    linhas = ranking_window_function(conn)
     if not linhas:
+        return
+
+    print(
+        f"\n  {'RANK':<5} {'PRODUTO':<34} {'RECEITA':>10}"
+        f" {'SHARE %':>9} {'ACUMULADO %':>12}"
+    )
+    print(
+        f"  {_linha('-', 5)} {_linha('-', 34)} {_linha('-', 10)}"
+        f" {_linha('-', 9)} {_linha('-', 12)}"
+    )
+    for row in linhas:
+        print(
+            f"  #{row['posicao_ranking']:<4} {row['produto']:<34}"
+            f" R${row['receita']:>8.2f}   {row['share_receita_pct']:>6.1f}%"
+            f"      {row['pareto_acumulado_pct']:>6.1f}%"
+        )
+    print()
+
+
+def gerar_grafico_faturamento(conn: sqlite3.Connection) -> None:
+    """Gera painel executivo com 4 graficos (KPIs, Pareto, Categorias e LTV) em PNG."""
+    _cabecalho("Painel Visual de KPIs e Faturamento")
+    linhas_cat = faturamento_por_categoria(conn)
+    linhas_pareto = ranking_window_function(conn)
+    linhas_cli = resumo_por_cliente(conn)
+    kpis = calcular_kpis_executivos(conn)
+
+    if not linhas_cat:
         _sem_resultados()
         return
 
-    maior_receita = max(row["receita_total"] for row in linhas) or 1.0
-    for row in linhas:
+    maior_receita = max(row["receita_total"] for row in linhas_cat) or 1.0
+    for row in linhas_cat:
         blocos = int((row["receita_total"] / maior_receita) * 30)
         barra = "#" * blocos
         print(
@@ -311,34 +352,150 @@ def gerar_grafico_faturamento(conn: sqlite3.Connection) -> None:
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
 
-        categorias = [row["categoria"] for row in linhas]
-        receitas = [row["receita_total"] for row in linhas]
+        plt.rcParams["font.sans-serif"] = ["DejaVu Sans", "Arial", "Helvetica"]
+        plt.rcParams["text.parse_math"] = False
+        fig = plt.figure(figsize=(14, 9.2), facecolor="#0f172a")
+        gs = fig.add_gridspec(3, 2, height_ratios=[0.28, 1, 1], hspace=0.58, wspace=0.25)
 
-        fig, ax = plt.subplots(figsize=(8, 5))
-        barras = ax.bar(categorias, receitas, color=["#2563eb", "#0891b2", "#0d9488"])
-        ax.set_title("Faturamento por Categoria (R$)", fontsize=13, pad=12)
-        ax.set_xlabel("Categoria")
-        ax.set_ylabel("Receita Total (R$)")
-        ax.grid(axis="y", linestyle="--", alpha=0.4)
+        ax_header = fig.add_subplot(gs[0, :])
+        ax_header.set_facecolor("#0f172a")
+        ax_header.axis("off")
+        ax_header.text(
+            0.0, 0.82, "LOJA DIGITAL  |  DASHBOARD EXECUTIVO DE DADOS",
+            color="#f8fafc", fontsize=15, fontweight="bold"
+        )
+        if kpis:
+            cards = [
+                ("RECEITA PAGA", f"R$ {kpis['receita_paga']:.2f}", "#38bdf8"),
+                ("RECEITA PENDENTE", f"R$ {kpis['receita_pendente']:.2f}", "#fbbf24"),
+                ("TICKET MEDIO", f"R$ {kpis['ticket_medio_pedido']:.2f}", "#818cf8"),
+                ("LTV MEDIO / CLIENTE", f"R$ {kpis['ltv_medio_cliente']:.2f}", "#34d399"),
+                ("TAXA DE CONVERSAO", f"{kpis['taxa_conversao_pct']:.1f}%", "#f43f5e"),
+            ]
+            for idx, (rotulo, valor, cor) in enumerate(cards):
+                x0 = idx * 0.202
+                rect = matplotlib.patches.FancyBboxPatch(
+                    (x0, 0.02), 0.185, 0.56,
+                    boxstyle="round,pad=0.02,rounding_size=0.03",
+                    facecolor="#1e293b", edgecolor="#334155", linewidth=1,
+                    transform=ax_header.transAxes
+                )
+                ax_header.add_patch(rect)
+                ax_header.text(
+                    x0 + 0.015, 0.40, rotulo,
+                    color="#94a3b8", fontsize=8, fontweight="bold",
+                    transform=ax_header.transAxes
+                )
+                ax_header.text(
+                    x0 + 0.015, 0.12, valor,
+                    color=cor, fontsize=12, fontweight="bold",
+                    transform=ax_header.transAxes
+                )
 
-        for barra, valor in zip(barras, receitas):
-            ax.text(
-                barra.get_x() + barra.get_width() / 2,
-                barra.get_height() + 15,
-                f"R$ {valor:.2f}",
-                ha="center",
-                va="bottom",
-                fontsize=9,
+        def estilizar_eixo(ax, titulo):
+            ax.set_facecolor("#1e293b")
+            ax.set_title(titulo, color="#f1f5f9", fontsize=11, fontweight="bold", pad=12, loc="left")
+            ax.tick_params(colors="#cbd5e1", labelsize=9)
+            for spine in ("top", "right"):
+                ax.spines[spine].set_visible(False)
+            for spine in ("bottom", "left"):
+                ax.spines[spine].set_color("#334155")
+            ax.grid(axis="both", linestyle="--", alpha=0.2, color="#94a3b8")
+
+        # 1. Receita por Categoria
+        ax1 = fig.add_subplot(gs[1, 0])
+        estilizar_eixo(ax1, "1. Receita Total por Categoria (R$)")
+        cats = [r["categoria"] for r in linhas_cat]
+        recs = [r["receita_total"] for r in linhas_cat]
+        cores_cat = ["#38bdf8", "#818cf8", "#34d399"]
+        barras1 = ax1.bar(cats, recs, color=cores_cat[: len(cats)], width=0.5)
+        ax1.set_ylim(0, max(recs) * 1.25)
+        for b, v in zip(barras1, recs):
+            ax1.text(
+                b.get_x() + b.get_width() / 2, b.get_height() + 25,
+                f"R$ {v:.0f}", ha="center", color="#f8fafc", fontsize=9, fontweight="bold"
             )
 
-        ax.set_ylim(0, max(receitas) * 1.15)
-        plt.tight_layout()
+        # 2. Curva de Pareto (Produtos + % Acumulado)
+        ax2 = fig.add_subplot(gs[1, 1])
+        estilizar_eixo(ax2, "2. Curva de Pareto (Receita e % Acumulado)")
+        nomes_curtos = [r["produto"][:13] + "." if len(r["produto"]) > 13 else r["produto"] for r in linhas_pareto]
+        rec_prod = [r["receita"] for r in linhas_pareto]
+        acum_pct = [r["pareto_acumulado_pct"] for r in linhas_pareto]
+        x_pos = range(len(nomes_curtos))
+        ax2.bar(x_pos, rec_prod, color="#6366f1", width=0.52, label="Receita (R$)")
+        ax2.set_xticks(list(x_pos))
+        ax2.set_xticklabels(nomes_curtos, rotation=18, ha="right", fontsize=8)
+        ax2_twin = ax2.twinx()
+        ax2_twin.plot(list(x_pos), acum_pct, color="#f59e0b", marker="o", linewidth=2, label="% Acumulado")
+        ax2_twin.set_ylim(0, 112)
+        ax2_twin.tick_params(colors="#f59e0b", labelsize=8)
+        ax2_twin.spines["top"].set_visible(False)
+        ax2_twin.spines["right"].set_color("#f59e0b")
+        ax2_twin.axhline(80, color="#f59e0b", linestyle=":", alpha=0.6)
+
+        # 3. Top Clientes por LTV (Gasto Total)
+        ax3 = fig.add_subplot(gs[2, 0])
+        estilizar_eixo(ax3, "3. Top Clientes por Volume de Compras (LTV)")
+        clientes_nomes = [r["cliente"] for r in linhas_cli][::-1]
+        clientes_gasto = [r["total_gasto"] for r in linhas_cli][::-1]
+        barras3 = ax3.barh(clientes_nomes, clientes_gasto, color="#10b981", height=0.6)
+        ax3.set_xlim(0, max(clientes_gasto) * 1.2)
+        for b, v in zip(barras3, clientes_gasto):
+            ax3.text(
+                v + 10, b.get_y() + b.get_height() / 2,
+                f"R$ {v:.0f}", va="center", color="#f8fafc", fontsize=8.5
+            )
+
+        # 4. Ticket Medio vs Receita por Categoria
+        ax4 = fig.add_subplot(gs[2, 1])
+        estilizar_eixo(ax4, "4. Ticket Medio Unitario por Categoria (R$)")
+        tickets = [r["ticket_medio"] for r in linhas_cat]
+        barras4 = ax4.bar(cats, tickets, color="#f43f5e", width=0.5)
+        ax4.set_ylim(0, max(tickets) * 1.25)
+        for b, v in zip(barras4, tickets):
+            ax4.text(
+                b.get_x() + b.get_width() / 2, b.get_height() + 4,
+                f"R$ {v:.2f}", ha="center", color="#f8fafc", fontsize=9, fontweight="bold"
+            )
 
         dir_raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        caminho_img = os.path.join(dir_raiz, "grafico_faturamento.png")
-        plt.savefig(caminho_img, dpi=150)
+        pasta_assets = os.path.join(dir_raiz, "assets")
+        os.makedirs(pasta_assets, exist_ok=True)
+        caminho_img = os.path.join(pasta_assets, "dashboard_executivo.png")
+        plt.savefig(caminho_img, dpi=160, bbox_inches="tight", facecolor=fig.get_facecolor())
         plt.close(fig)
-        print(f"  Arquivo de imagem salvo em: {caminho_img}\n")
+        print(f"  Dashboard salvo com sucesso em: {caminho_img}\n")
     except ImportError:
-        print("  (Dica: instale 'matplotlib' para tambem exportar o grafico em PNG)\n")
+        print("  (Dica: instale 'matplotlib' para exportar o dashboard em PNG)\n")
+
+
+def exportar_relatorios_csv(conn: sqlite3.Connection) -> None:
+    """Automatiza a exportacao das tabelas analiticas para arquivos CSV na pasta exports/."""
+    _cabecalho("Automacao: Exportar Camada Analitica (CSV)")
+    dir_raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    pasta_exports = os.path.join(dir_raiz, "exports")
+    os.makedirs(pasta_exports, exist_ok=True)
+
+    tarefas = [
+        ("faturamento_categorias.csv", faturamento_por_categoria(conn)),
+        ("pareto_produtos_window.csv", ranking_window_function(conn)),
+        ("ltv_clientes.csv", resumo_por_cliente(conn)),
+        ("pedidos_consolidados.csv", pedidos_detalhados(conn)),
+    ]
+
+    for nome_arquivo, dados in tarefas:
+        if not dados:
+            continue
+        caminho = os.path.join(pasta_exports, nome_arquivo)
+        colunas = dados[0].keys()
+        with open(caminho, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(colunas)
+            for linha in dados:
+                writer.writerow([linha[col] for col in colunas])
+        print(f"  [OK] Exportado: exports/{nome_arquivo} ({len(dados)} registros)")
+
+    print("\n  Camada analitica exportada com sucesso!\n")
+
 

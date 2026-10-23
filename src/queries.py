@@ -208,3 +208,76 @@ def inserir_produto(
     conn.commit()
     return int(cursor.lastrowid)
 
+
+def calcular_kpis_executivos(conn: sqlite3.Connection) -> Any:
+    """Calcula os principais KPIs executivos de vendas, ticket medio, LTV e conversao."""
+    cursor = conn.execute(
+        """
+        WITH totais_pedidos AS (
+            SELECT
+                p.id AS pedido_id,
+                p.cliente_id,
+                p.status,
+                SUM(ip.quantidade * ip.preco_unit) AS valor_pedido
+            FROM pedidos p
+            JOIN itens_pedido ip ON ip.pedido_id = p.id
+            GROUP BY p.id, p.cliente_id, p.status
+        )
+        SELECT
+            COUNT(pedido_id) AS total_pedidos,
+            ROUND(SUM(CASE WHEN status = 'pago' THEN valor_pedido ELSE 0 END), 2) AS receita_paga,
+            ROUND(SUM(CASE WHEN status = 'pendente' THEN valor_pedido ELSE 0 END), 2) AS receita_pendente,
+            ROUND(AVG(CASE WHEN status != 'cancelado' THEN valor_pedido END), 2) AS ticket_medio_pedido,
+            ROUND(
+                SUM(CASE WHEN status != 'cancelado' THEN valor_pedido ELSE 0 END)
+                / COUNT(DISTINCT CASE WHEN status != 'cancelado' THEN cliente_id END),
+                2
+            ) AS ltv_medio_cliente,
+            ROUND(
+                100.0 * SUM(CASE WHEN status = 'pago' THEN 1 ELSE 0 END) / COUNT(pedido_id),
+                1
+            ) AS taxa_conversao_pct,
+            ROUND(
+                100.0 * SUM(CASE WHEN status = 'cancelado' THEN 1 ELSE 0 END) / COUNT(pedido_id),
+                1
+            ) AS taxa_cancelamento_pct
+        FROM totais_pedidos
+        """
+    )
+    return cursor.fetchone()
+
+
+def ranking_window_function(conn: sqlite3.Connection) -> list[Any]:
+    """Calcula ranking e participacao percentual (share) usando Window Functions (RANK e SUM OVER)."""
+    cursor = conn.execute(
+        """
+        WITH receita_produtos AS (
+            SELECT
+                pr.nome AS produto,
+                pr.categoria,
+                COALESCE(SUM(ip.quantidade), 0) AS unidades,
+                ROUND(COALESCE(SUM(ip.quantidade * ip.preco_unit), 0), 2) AS receita
+            FROM produtos pr
+            LEFT JOIN itens_pedido ip ON ip.produto_id = pr.id
+            LEFT JOIN pedidos p ON p.id = ip.pedido_id AND p.status != 'cancelado'
+            GROUP BY pr.id, pr.nome, pr.categoria
+        )
+        SELECT
+            RANK() OVER (ORDER BY receita DESC) AS posicao_ranking,
+            produto,
+            categoria,
+            unidades,
+            receita,
+            ROUND(100.0 * receita / SUM(receita) OVER (), 1) AS share_receita_pct,
+            ROUND(
+                100.0 * SUM(receita) OVER (ORDER BY receita DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+                / SUM(receita) OVER (),
+                1
+            ) AS pareto_acumulado_pct
+        FROM receita_produtos
+        ORDER BY posicao_ranking
+        """
+    )
+    return cursor.fetchall()
+
+
