@@ -1,5 +1,7 @@
--- Criacao das tabelas e view da Loja Digital
+-- Camada Silver: tabelas tipadas, deduplicadas, validadas e quarentena de rejeitados
 
+DROP VIEW IF EXISTS resumo_pedidos;
+DROP TABLE IF EXISTS silver_rejeitados;
 DROP TABLE IF EXISTS itens_pedido;
 DROP TABLE IF EXISTS pedidos;
 DROP TABLE IF EXISTS produtos;
@@ -37,6 +39,14 @@ CREATE TABLE itens_pedido (
     preco_unit  REAL    NOT NULL CHECK (preco_unit >= 0),
     FOREIGN KEY (pedido_id)  REFERENCES pedidos  (id),
     FOREIGN KEY (produto_id) REFERENCES produtos (id)
+);
+
+CREATE TABLE silver_rejeitados (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    tabela_origem   TEXT    NOT NULL,
+    motivo          TEXT    NOT NULL,
+    registro_raw    TEXT    NOT NULL,
+    rejeitado_em    TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE VIEW IF NOT EXISTS resumo_pedidos AS
