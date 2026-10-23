@@ -30,12 +30,14 @@ def calcular_carta_controle_diaria(
     conn: sqlite3.Connection, coluna_metrica: str = "receita_liquida_dia"
 ) -> dict[str, Any]:
     """
-    Calcula os limites de controle estatistico de processo (CEP / Lean Six Sigma)
-    sobre a serie diaria da camada Gold usando pandas para o desvio-padrao:
-      - Media (LC) = mu
-      - Limite Superior de Controle (LSC / UCL) = mu + 3 * sigma
-      - Limite Inferior de Controle (LIC / LCL) = max(0, mu - 3 * sigma)
-    Destaca os dias fora de controle estatistico.
+    Calcula a Carta de Controle de Individuos e Amplitude Movel (I-MR) do Lean Six Sigma
+    ajustada para sazonalidade sobre a serie diaria da camada Gold:
+      - Tendencia sazonal local (T_t): media movel centrada de 15 dias
+      - Residuo dessazonalizado (e_t): y_t - T_t
+      - Amplitude Movel (MR_t): |e_t - e_{t-1}|
+      - Sigma de curto prazo (I-MR): sigma_imr = MR_medio / 1.128 (constante d2 para n=2)
+      - Banda dinamica 3-Sigma: T_t +/- 3 * sigma_imr
+    Tambem registra o desvio-padrao amostral global para comparacao metodologica.
     """
     construir_gold(conn)
     rows = [
@@ -46,6 +48,8 @@ def calcular_carta_controle_diaria(
             "metrica": coluna_metrica,
             "media": 0.0,
             "desvio_padrao": 0.0,
+            "desvio_padrao_amostral": 0.0,
+            "mr_medio": 0.0,
             "lsc_3sigma": 0.0,
             "lic_3sigma": 0.0,
             "total_dias": 0,
@@ -57,21 +61,34 @@ def calcular_carta_controle_diaria(
     df = pd.DataFrame(rows)
     serie_valores = df[coluna_metrica].astype(float)
     media = float(serie_valores.mean())
-    desvio = float(serie_valores.std(ddof=1)) if len(df) > 1 else 0.0
+    desvio_amostral = float(serie_valores.std(ddof=1)) if len(df) > 1 else 0.0
 
-    lsc = round(media + 3.0 * desvio, 2)
-    lic = round(max(0.0, media - 3.0 * desvio), 2)
+    # Ajuste sazonal por media movel centrada de 15 dias e estimador I-MR (d2 = 1.128)
+    tendencia = serie_valores.rolling(window=15, center=True, min_periods=1).mean()
+    residuo = serie_valores - tendencia
+    amplitude_movel = residuo.diff().abs()
+    mr_medio = float(amplitude_movel.mean()) if len(df) > 1 else 0.0
+    sigma_imr = (mr_medio / 1.128) if mr_medio > 0 else desvio_amostral
+
+    lsc_global = round(media + 3.0 * sigma_imr, 2)
+    lic_global = round(max(0.0, media - 3.0 * sigma_imr), 2)
     media_round = round(media, 2)
-    desvio_round = round(desvio, 2)
+    sigma_imr_round = round(sigma_imr, 2)
+    desvio_amostral_round = round(desvio_amostral, 2)
+    mr_medio_round = round(mr_medio, 2)
 
     df["media_processo"] = media_round
-    df["desvio_padrao"] = desvio_round
-    df["lsc_3sigma"] = lsc
-    df["lic_3sigma"] = lic
+    df["tendencia_sazonal"] = tendencia.round(2)
+    df["residuo_sazonal"] = residuo.round(2)
+    df["amplitude_movel_mr"] = amplitude_movel.fillna(0.0).round(2)
+    df["desvio_padrao"] = sigma_imr_round
+    df["desvio_padrao_amostral"] = desvio_amostral_round
+    df["lsc_3sigma"] = (tendencia + 3.0 * sigma_imr).round(2)
+    df["lic_3sigma"] = (tendencia - 3.0 * sigma_imr).clip(lower=0.0).round(2)
     df["z_score"] = (
-        ((serie_valores - media) / desvio).round(2) if desvio > 0 else 0.0
+        (residuo / sigma_imr).round(2) if sigma_imr > 0 else 0.0
     )
-    df["fora_de_controle"] = (serie_valores > lsc) | (serie_valores < lic)
+    df["fora_de_controle"] = residuo.abs() > (3.0 * sigma_imr)
     df["status_cep"] = df["fora_de_controle"].map(
         lambda x: "FORA_DE_CONTROLE" if x else "SOB_CONTROLE"
     )
@@ -82,9 +99,11 @@ def calcular_carta_controle_diaria(
     return {
         "metrica": coluna_metrica,
         "media": media_round,
-        "desvio_padrao": desvio_round,
-        "lsc_3sigma": lsc,
-        "lic_3sigma": lic,
+        "desvio_padrao": sigma_imr_round,
+        "desvio_padrao_amostral": desvio_amostral_round,
+        "mr_medio": mr_medio_round,
+        "lsc_3sigma": lsc_global,
+        "lic_3sigma": lic_global,
         "total_dias": len(registros),
         "dias_fora_controle": len(fora),
         "pontos_fora_controle": fora,

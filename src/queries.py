@@ -225,12 +225,13 @@ def calcular_kpis_executivos(conn: sqlite3.Connection) -> Any:
         )
         SELECT
             COUNT(pedido_id) AS total_pedidos,
+            SUM(CASE WHEN status = 'pago' THEN 1 ELSE 0 END) AS pedidos_pagos,
             ROUND(SUM(CASE WHEN status = 'pago' THEN valor_pedido ELSE 0 END), 2) AS receita_paga,
             ROUND(SUM(CASE WHEN status = 'pendente' THEN valor_pedido ELSE 0 END), 2) AS receita_pendente,
-            ROUND(AVG(CASE WHEN status != 'cancelado' THEN valor_pedido END), 2) AS ticket_medio_pedido,
+            ROUND(AVG(CASE WHEN status = 'pago' THEN valor_pedido END), 2) AS ticket_medio_pedido,
             ROUND(
-                SUM(CASE WHEN status != 'cancelado' THEN valor_pedido ELSE 0 END)
-                / COUNT(DISTINCT CASE WHEN status != 'cancelado' THEN cliente_id END),
+                SUM(CASE WHEN status = 'pago' THEN valor_pedido ELSE 0 END)
+                / NULLIF(COUNT(DISTINCT CASE WHEN status = 'pago' THEN cliente_id END), 0),
                 2
             ) AS ltv_medio_cliente,
             ROUND(

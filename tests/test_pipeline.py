@@ -3,16 +3,24 @@ Testes automatizados para o pipeline da Arquitetura Medalha (Bronze -> Silver ->
 determinismo do Faker, idempotencia, KPIs Gold, carta de controle 3-Sigma e CLI/Menu.
 """
 
+import os
 import sqlite3
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from src import database, main, queries, relatorios
-from src.pipeline.executar import run_pipeline
-from src.pipeline.gerar_dados import gerar_arquivos_raw
-from src.pipeline.gold import calcular_carta_controle_diaria
+_DIR_RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(_DIR_RAIZ, "src"))
+
+import database
+import main
+import queries
+import relatorios
+from pipeline.executar import run_pipeline
+from pipeline.gerar_dados import gerar_arquivos_raw
+from pipeline.gold import calcular_carta_controle_diaria
 
 
 def test_gerador_dados_deterministico_mesma_semente(tmp_path: Path) -> None:
@@ -141,6 +149,13 @@ def test_kpis_gold_mom_rfm_coorte_cancelamento_e_carta_controle(pipeline_isolado
     assert 0 < recompra["taxa_recompra_pct"] < 100
     assert recompra["clientes_recorrentes"] > 0
 
+    # Reconciliacao aritmetica exata da base paga (status = 'pago')
+    kpis = queries.calcular_kpis_executivos(conn)
+    assert round(kpis["receita_paga"] / kpis["pedidos_pagos"], 2) == kpis["ticket_medio_pedido"]
+    assert round(kpis["receita_paga"] / recompra["clientes_compradores"], 2) == kpis["ltv_medio_cliente"]
+    assert round(sum(r["receita_segmento"] for r in resumo_rfm), 2) == kpis["receita_paga"]
+    assert round(sum(r["receita_liquida"] for r in mom), 2) == kpis["receita_paga"]
+
     canc_cat = queries.cancelamento_categoria_mes(conn)
     assert len(canc_cat) > 0
     assert "taxa_cancelamento_pct" in dict(canc_cat[0])
@@ -148,7 +163,8 @@ def test_kpis_gold_mom_rfm_coorte_cancelamento_e_carta_controle(pipeline_isolado
     carta = calcular_carta_controle_diaria(conn)
     assert carta["total_dias"] > 100
     assert carta["lsc_3sigma"] > carta["media"]
-    assert carta["dias_fora_controle"] >= 1
+    assert carta["desvio_padrao"] < carta["desvio_padrao_amostral"]
+    assert carta["dias_fora_controle"] == 2
 
 
 def test_exportacoes_e_dashboard_executivo(pipeline_isolado: dict) -> None:
@@ -189,8 +205,8 @@ def test_menu_opcoes_1_a_20_e_entradas_invalidas(pipeline_isolado: dict) -> None
         main.main([])
 
 
-def test_cli_parse_args(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Testa parsing de flags --pipeline e --demo."""
+def test_cli_parse_args_e_clone_limpo_sem_banco(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Testa parsing de flags e execucao do modo 2 (sem --pipeline e sem .db previo)."""
     args_pipe = main._parse_args(["--pipeline"])
     assert args_pipe.pipeline is True
     assert args_pipe.demo is False
@@ -199,9 +215,13 @@ def test_cli_parse_args(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     assert args_demo.demo is True
     assert args_demo.pipeline is False
 
-    # Testa execucao de --demo saindo imediatamente com 0
-    banco_demo = tmp_path / "demo_cli.db"
-    monkeypatch.setattr(database, "CAMINHO_BANCO", str(banco_demo))
-    monkeypatch.setattr(main, "CAMINHO_BANCO", str(banco_demo))
-    with patch("builtins.input", lambda _: "0"):
-        main.main(["--demo"])
+    # Testa modo 2 em clone limpo (quando o arquivo .db nao existe ainda)
+    banco_inexistente = tmp_path / "clone_limpo_sem_db.db"
+    assert not banco_inexistente.exists()
+    monkeypatch.setattr(database, "CAMINHO_BANCO", str(banco_inexistente))
+    monkeypatch.setattr(main, "CAMINHO_BANCO", str(banco_inexistente))
+    entradas_modo2 = iter(["1", "11", "16", "17", "18", "19", "20", "0"])
+    with patch("builtins.input", lambda _: next(entradas_modo2)):
+        main.main([])
+    assert banco_inexistente.exists()
+

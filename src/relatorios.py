@@ -359,11 +359,11 @@ def gerar_grafico_faturamento(conn: sqlite3.Connection) -> None:
     Segmentacao RFM e Carta de Controle Lean Six Sigma (3-Sigma).
     """
     _cabecalho("Painel Visual de KPIs e Controle de Processo")
+    carta = calcular_carta_controle_diaria(conn)
     linhas_cat = faturamento_por_categoria(conn)
-    linhas_pareto = ranking_window_function(conn)
+    linhas_pareto = conn.execute("SELECT * FROM gold_pareto_produtos").fetchall()
     linhas_rfm = resumo_segmentos_rfm(conn)
     linhas_mes = receita_mensal_mom(conn)
-    carta = calcular_carta_controle_diaria(conn)
     kpis = calcular_kpis_executivos(conn)
 
     if not linhas_cat:
@@ -401,8 +401,8 @@ def gerar_grafico_faturamento(conn: sqlite3.Connection) -> None:
             tx_rec = recompra["taxa_recompra_pct"] if recompra else 0.0
             cards = [
                 ("RECEITA PAGA", f"R$ {kpis['receita_paga']:,.2f}", "#38bdf8"),
-                ("TICKET MEDIO", f"R$ {kpis['ticket_medio_pedido']:,.2f}", "#818cf8"),
-                ("LTV MEDIO / CLIENTE", f"R$ {kpis['ltv_medio_cliente']:,.2f}", "#34d399"),
+                ("TICKET MEDIO PAGO", f"R$ {kpis['ticket_medio_pedido']:,.2f}", "#818cf8"),
+                ("LTV MEDIO PAGO", f"R$ {kpis['ltv_medio_cliente']:,.2f}", "#34d399"),
                 ("CONVERSAO PAGOS", f"{kpis['taxa_conversao_pct']:.1f}%", "#fbbf24"),
                 ("TAXA DE RECOMPRA", f"{tx_rec:.1f}%", "#f43f5e"),
             ]
@@ -436,13 +436,13 @@ def gerar_grafico_faturamento(conn: sqlite3.Connection) -> None:
                 ax.spines[spine].set_color("#334155")
             ax.grid(axis="both", linestyle="--", alpha=0.2, color="#94a3b8")
 
-        # Painel 1: Pareto 80/20 (Top 10 produtos para legibilidade)
+        # Painel 1: Pareto 80/20 (Top 8 produtos para legibilidade)
         ax1 = fig.add_subplot(gs[1, 0])
         prods_80 = [r for r in linhas_pareto if r["pareto_acumulado_pct"] <= 83.0] or linhas_pareto[:1]
         pct_top = prods_80[-1]["pareto_acumulado_pct"]
         estilizar_eixo(
             ax1,
-            f"1. Pareto 80/20: {len(prods_80)} de {len(linhas_pareto)} produtos geram {pct_top:.1f}% da receita",
+            f"1. Pareto 80/20: {len(prods_80)} de {len(linhas_pareto)} produtos geram {pct_top:.1f}% da receita paga",
         )
         amostra_p = linhas_pareto[:8]
         nomes_curtos = [r["produto"][:13] + "." if len(r["produto"]) > 13 else r["produto"] for r in amostra_p]
@@ -470,10 +470,10 @@ def gerar_grafico_faturamento(conn: sqlite3.Connection) -> None:
             melhor_mes = max(linhas_mes, key=lambda x: x["receita_liquida"])
             estilizar_eixo(
                 ax2,
-                f"2. Evolucao Mensal e MM3M: pico em {melhor_mes['mes']} (R$ {melhor_mes['receita_liquida']:,.0f})",
+                f"2. Evolucao Mensal Paga e MM3M: pico em {melhor_mes['mes']} (R$ {melhor_mes['receita_liquida']:,.0f})",
             )
             x_m = list(range(len(meses)))
-            ax2.bar(x_m, rec_m, color="#38bdf8", alpha=0.75, width=0.55, label="Receita Mensal")
+            ax2.bar(x_m, rec_m, color="#38bdf8", alpha=0.75, width=0.55, label="Receita Mensal Paga")
             ax2.plot(x_m, mm3, color="#f43f5e", marker="o", linewidth=2.2, label="Media Movel 3M")
             ax2.set_xticks(x_m)
             ax2.set_xticklabels(meses, rotation=20, ha="right", fontsize=8)
@@ -501,7 +501,7 @@ def gerar_grafico_faturamento(conn: sqlite3.Connection) -> None:
             top_seg = linhas_rfm[0]
             estilizar_eixo(
                 ax3,
-                f"3. Matriz RFM: segmento '{top_seg['segmento_rfm']}' representa {top_seg['share_receita_pct']:.1f}% da receita",
+                f"3. Matriz RFM: segmento '{top_seg['segmento_rfm']}' gera {top_seg['share_receita_pct']:.1f}% da receita paga",
             )
             barras3 = ax3.barh(segs, rec_segs, color="#10b981", height=0.55)
             ax3.set_xlim(0, max(rec_segs) * 1.25)
@@ -511,26 +511,29 @@ def gerar_grafico_faturamento(conn: sqlite3.Connection) -> None:
                     f"R$ {v:,.0f}", va="center", color="#f8fafc", fontsize=8.5, fontweight="bold"
                 )
 
-        # Painel 4: Carta de Controle Lean Six Sigma (Receita Diaria mu +/- 3 sigma)
+        # Painel 4: Carta de Controle I-MR Dessazonalizada (Tendencia MM15d +/- 3 sigma_IMR)
         ax4 = fig.add_subplot(gs[2, 1])
         serie_cep = carta["serie"]
         qtd_fora = carta["dias_fora_controle"]
         estilizar_eixo(
             ax4,
-            f"4. Carta de Controle 3-Sigma: {qtd_fora} dia(s) fora do limite estatistico (LSC R$ {carta['lsc_3sigma']:,.0f})",
+            f"4. Carta I-MR Dessazonalizada: {qtd_fora} dia(s) fora de 3s (s_IMR R$ {carta['desvio_padrao']:,.0f})",
         )
         if serie_cep:
             valores_dia = [r["receita_liquida_dia"] for r in serie_cep]
+            tend_dia = [r["tendencia_sazonal"] for r in serie_cep]
+            lsc_dia = [r["lsc_3sigma"] for r in serie_cep]
+            lic_dia = [r["lic_3sigma"] for r in serie_cep]
             idx_dias = list(range(len(valores_dia)))
-            ax4.plot(idx_dias, valores_dia, color="#94a3b8", linewidth=1.0, alpha=0.85, label="Receita Diaria")
-            ax4.axhline(carta["media"], color="#38bdf8", linestyle="-", linewidth=1.4, label=f"Media (R$ {carta['media']:,.0f})")
-            ax4.axhline(carta["lsc_3sigma"], color="#f43f5e", linestyle="--", linewidth=1.4, label=f"LSC +3s (R$ {carta['lsc_3sigma']:,.0f})")
-            ax4.axhline(carta["lic_3sigma"], color="#fbbf24", linestyle=":", linewidth=1.2, label=f"LIC -3s (R$ {carta['lic_3sigma']:,.0f})")
+            ax4.plot(idx_dias, valores_dia, color="#94a3b8", linewidth=1.0, alpha=0.80, label="Receita Diaria Paga")
+            ax4.plot(idx_dias, tend_dia, color="#38bdf8", linestyle="-", linewidth=1.6, label="Tendencia Sazonal (MM15d)")
+            ax4.plot(idx_dias, lsc_dia, color="#f43f5e", linestyle="--", linewidth=1.3, label=f"LSC +3s I-MR (s=R$ {carta['desvio_padrao']:,.0f})")
+            ax4.plot(idx_dias, lic_dia, color="#fbbf24", linestyle=":", linewidth=1.2, label="LIC -3s I-MR")
 
             x_fora = [i for i, r in enumerate(serie_cep) if r["fora_de_controle"]]
             y_fora = [serie_cep[i]["receita_liquida_dia"] for i in x_fora]
             if x_fora:
-                ax4.scatter(x_fora, y_fora, color="#f43f5e", s=45, zorder=5, label="Fora de Controle")
+                ax4.scatter(x_fora, y_fora, color="#f43f5e", s=45, zorder=5, label="Causa Especial (>3s)")
             ax4.legend(loc="upper right", facecolor="#1e293b", edgecolor="#334155", labelcolor="#f8fafc", fontsize=7.5)
 
         dir_raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
