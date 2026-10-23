@@ -107,14 +107,14 @@ erDiagram
 
 - **Receita Confirmada e Conversão**: **R$ 2.248.527,00** em **3.830 pedidos pagos** (taxa de conversão de **76,6%** sobre os 5.000 pedidos válidos; **690 pedidos pendentes** somam R$ 387.418,00 e **480 cancelados** representam **9,6%**).
 - **Ticket Médio Pago e LTV Pago**:
-  - $\text{Ticket Médio Pago} = \frac{\text{R\$ } 2.248.527,00}{3.830 \text{ pedidos pagos}} = \mathbf{\text{R\$ } 587,08}$
-  - $\text{LTV Médio Pago} = \frac{\text{R\$ } 2.248.527,00}{198 \text{ clientes pagantes}} = \mathbf{\text{R\$ } 11.356,20}$ *(2 dos 200 clientes válidos possuem apenas pedidos pendentes/cancelados).*
+  - `Ticket Médio Pago` = `R$ 2.248.527,00 ÷ 3.830 pedidos pagos` = **R$ 587,08**
+  - `LTV Médio Pago` = `R$ 2.248.527,00 ÷ 198 clientes pagantes` = **R$ 11.356,20** *(2 dos 200 clientes válidos possuem apenas pedidos pendentes/cancelados).*
 - **Curva de Pareto 80/20 (sobre Receita Paga)**: **4 dos 30 produtos (13,3% do catálogo)** concentram **80,8% da receita paga** (`R$ 1.816.299,00` de `R$ 2.248.527,00`).
 - **Sazonalidade e Crescimento Mensal (MoM e MM3M)**: os 12 meses de receita paga somam exatamente **R$ 2.248.527,00**, atingindo o pico em **junho de 2026 (`2026-06`) com R$ 366.076,00** (média móvel trimestral de R$ 324.870,33).
 - **Matriz RFM e Recompra**: a taxa de recompra entre clientes pagantes é de **82,8%** (`164` recorrentes em `198` compradores). A soma dos 4 segmentos fecha em **R$ 2.248.527,00**: **Campeões** (`63` clientes | **R$ 1.346.807,00** | **59,9%**), **Inativos** (`96` clientes | **R$ 440.472,00** | **19,6%**), **Leais** (`30` clientes | **R$ 376.465,00** | **16,7%**) e **Em risco** (`9` clientes | **R$ 84.783,00** | **3,8%**).
-- **Controle Estatístico de Processo (Carta I-MR Dessazonalizada)**: como a série diária possui sazonalidade acentuada, uma carta de Shewhart estática usando o desvio-padrão amostral global ($s = \text{R\$ } 4.589,17$) inflaria os limites e mascararia anomalias fora do pico. Para tratar a não-estacionariedade, extraí a tendência sazonal via média móvel centrada de 15 dias ($\hat{T}_t$) e apliquei sobre os resíduos ($e_t = y_t - \hat{T}_t$) o estimador de curto prazo por **Amplitude Móvel (Carta I-MR)**:
-  $$\hat{\sigma}_{IMR} = \frac{\overline{MR}}{d_2} = \frac{\text{R\$ } 2.882,94}{1,128} = \mathbf{\text{R\$ } 2.555,79}$$
-  Com a banda dinâmica $\hat{T}_t \pm 3\hat{\sigma}_{IMR}$, o modelo detecta exatamente os **2 dias com causas especiais sintéticas injetadas na simulação**: `2026-02-28` (`R$ 14.041,00`, $Z = +3,16\sigma$) e `2026-07-04` (`R$ 40.227,00`, $Z = +10,58\sigma$).
+- **Controle Estatístico de Processo (Carta I-MR Dessazonalizada)**: como a série diária possui sazonalidade acentuada, uma carta de Shewhart estática usando o desvio-padrão amostral global ($s = 4.589{,}17\text{ BRL}$) inflaria os limites e mascararia anomalias fora do pico. Para tratar a não-estacionariedade, extraí a tendência sazonal via média móvel centrada de 15 dias ($\hat{T}_t$) e apliquei sobre os resíduos ($e_t = y_t - \hat{T}_t$) o estimador de curto prazo por **Amplitude Móvel (Carta I-MR)**:
+  $$\hat{\sigma}_{IMR} = \frac{\overline{MR}}{d_2} = \frac{2.882{,}94}{1{,}128} = 2.555{,}79\text{ BRL}$$
+  Com a banda dinâmica $\hat{T}_t \pm 3\hat{\sigma}_{IMR}$, o modelo detecta exatamente os **2 dias com causas especiais sintéticas injetadas na simulação**: `2026-02-28` (`R$ 14.041,00`, $Z = +3{,}16\sigma$) e `2026-07-04` (`R$ 40.227,00`, $Z = +10{,}58\sigma$).
 
 ---
 
@@ -241,7 +241,7 @@ desafio-engenharia-dados-jr/
 
 ## 9. Testes Automatizados e Qualidade de Código
 
-A suíte automatizada conta com **30 testes** (`tests/test_queries.py`, `tests/test_qualidade.py` e `tests/test_pipeline.py`), atingindo **88% de cobertura** em `src/` e verificação estática limpa com `ruff`, validados automaticamente a cada push e Pull Request via GitHub Actions:
+A suíte automatizada conta com **30 testes** (`tests/test_queries.py`, `tests/test_qualidade.py` e `tests/test_pipeline.py`), atingindo **90% de cobertura** em `src/` e verificação estática limpa com `ruff`, validados automaticamente a cada push e Pull Request via GitHub Actions:
 
 ```bash
 pytest --cov=src --cov-report=term-missing -v
@@ -254,7 +254,7 @@ ruff check src/ tests/
 
 1. **Prefixos de camada (`bronze_*`, `silver_rejeitados`, `gold_*`) no SQLite**: como o SQLite opera em arquivo único sem múltiplos schemas independentes, utilizei prefixos por camada mantendo os nomes originais (`clientes`, `produtos`, `pedidos`, `itens_pedido` e `resumo_pedidos`) na camada Silver para preservar compatibilidade total com os testes originais.
 2. **Camada Bronze em Full Refresh vs. Append Imutável**: nesta implementação local, o `sql/bronze.sql` recria as tabelas brutas a cada execução (`DROP TABLE IF EXISTS`), espelhando fielmente os CSVs de entrada sem tipagem ou filtragem. Em produção, o próximo passo é substituir o full refresh por ingestão incremental append-only particionada por `_ingested_at`.
-3. **Ajuste Sazonal e Carta I-MR em Pandas**: o SQLite nativo não possui funções agregadas de desvio-padrão ou janela móvel centrada com `diff()`. Além disso, o desvio-padrão amostral direto ($s$) sobre uma série sazonal superestima a dispersão natural do processo. O cálculo em `pandas` permitiu combinar decomposição por média móvel centrada (15 dias) com o estimador $\hat{\sigma}_{IMR} = \overline{MR}/1,128$.
+3. **Ajuste Sazonal e Carta I-MR em Pandas**: o SQLite nativo não possui funções agregadas de desvio-padrão ou janela móvel centrada com `diff()`. Além disso, o desvio-padrão amostral direto ($s$) sobre uma série sazonal superestima a dispersão natural do processo. O cálculo em `pandas` permitiu combinar decomposição por média móvel centrada (15 dias) com o estimador $\hat{\sigma}_{IMR} = \overline{MR}/1{,}128$.
 
 ---
 
@@ -270,9 +270,4 @@ ruff check src/ tests/
 
 ## 12. Autora
 
-**Nayane Araujo**  
-Engenheira Química | Mestre em Data Analytics | Especialista em Qualidade e Lean Six Sigma em transição para Engenharia de Dados
-
-- **LinkedIn**: [linkedin.com/in/nayane-oaraujo](https://www.linkedin.com/in/nayane-oaraujo)
-- **GitHub**: [github.com/Nayanearaujo](https://github.com/Nayanearaujo)
-- **Repositório do Projeto**: [github.com/Nayanearaujo/desafio-engenharia-dados-jr](https://github.com/Nayanearaujo/desafio-engenharia-dados-jr)
+Nayane Araujo · [LinkedIn](https://www.linkedin.com/in/nayane-oaraujo) · [Portfólio](https://nayanearaujo.github.io/) · [GitHub](https://github.com/Nayanearaujo)
