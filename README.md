@@ -1,4 +1,4 @@
-# Loja Digital: Pipeline de Engenharia de Dados em Arquitetura Medalha
+# Loja Digital: Pipeline de Engenharia de Dados com Arquitetura Medalha
 
 [![CI - Qualidade e Testes](https://github.com/Nayanearaujo/desafio-engenharia-dados-jr/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Nayanearaujo/desafio-engenharia-dados-jr/actions/workflows/ci.yml)
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue)
@@ -254,6 +254,7 @@ $$\hat{\sigma}_{IMR} = \frac{\overline{MR}}{d_2} = \frac{2.882{,}94}{1{,}128} = 
 Com a banda dinâmica $\hat{T}_t \pm 3\hat{\sigma}_{IMR}$, o modelo sinaliza exatamente os **2 dias com choques sintéticos injetados na simulação**: `2026-02-28` (`R$ 14.041,00`, $Z = +3{,}16\sigma$) e `2026-07-04` (`R$ 40.227,00`, $Z = +10{,}58\sigma$).
 
 **Premissas e limitações conhecidas da abordagem:**
+
 1. **Efeito de borda da janela centrada (`window=15, center=True, min_periods=1`)**: nos primeiros e últimos 7 dias da série, a média móvel opera com menos de 15 observações. Além disso, como a janela é centrada (usa 7 dias passados e 7 futuros), ela é adequada para **diagnóstico histórico retrospectivo**, mas em monitoramento online em tempo real deve ser substituída por uma janela causal (retrospectiva) ou alisamento exponencial (EWMA).
 2. **Influência de outliers extremos sobre a média móvel e sobre $\overline{MR}$**: um pico muito elevado (como `2026-07-04`) puxa levemente para cima a tendência local $\hat{T}_t$ nos 7 dias vizinhos e aumenta o valor médio de $\overline{MR}$. Em séries com múltiplos outliers próximos, uma evolução recomendada é estimar $\hat{T}_t$ por mediana móvel e calcular o limite a partir da mediana da amplitude móvel ($d_4 = 0{,}954$).
 3. **Banda dinâmica por dia vs. limites globais de referência**: o dicionário de retorno expõe tanto os limites globais em torno da média geral (`lsc_3sigma` e `lic_3sigma` escalares) para sumário executivo quanto os vetores diários (`df["lsc_3sigma"] = tendencia + 3 * sigma_imr`) utilizados na detecção efetiva de anomalias.
@@ -263,6 +264,7 @@ Com a banda dinâmica $\hat{T}_t \pm 3\hat{\sigma}_{IMR}$, o modelo sinaliza exa
 ## 7. Validação de Esquema e Quarentena de Dados (Camada Silver)
 
 O módulo `src/pipeline/qualidade.py` aplica regras determinísticas antes da carga na camada Silver:
+
 - **Obrigatoriedade e formato canônico de chave primária**: rejeita campos vazios, chaves não numéricas, negativas, repetidas ou em formato não canônico (como `"4.0"`).
 - **Finitude e positividade numérica**: rejeita valores menores ou iguais a zero e bloqueia explicitamente `NaN` e `inf` via `math.isfinite()`.
 - **Validação de calendário ISO e janela temporal de negócio**: valida datas reais (`YYYY-MM-DD`) e exige que estejam dentro da janela operacional configurada em `src/config.py` (`2020-01-01` a `2030-12-31`), bloqueando datas fora do intervalo com o motivo `data_fora_janela_negocio`.
@@ -361,9 +363,9 @@ ruff check src/ tests/
 1. **Prefixos de camada (`bronze_*`, `silver_rejeitados`, `gold_*`) no SQLite**: como o SQLite opera em arquivo único sem múltiplos schemas independentes, utilizei prefixos por camada mantendo os nomes originais (`clientes`, `produtos`, `pedidos`, `itens_pedido` e `resumo_pedidos`) na camada Silver para preservar compatibilidade total com os testes originais.
 2. **Separação entre geração (`--pipeline`) e reprocessamento (`--reprocessar`)**: permite reprocessar os mesmos CSVs brutos de `data/raw/` sem regerar dados sintéticos, registrando cada execução na tabela `pipeline_execucoes` (`modo_geracao = 'regerado'` ou `'reprocessado'`).
 3. **Limitações atuais e próximos passos**:
-   - Substituir o `DROP TABLE` da camada Bronze por ingestão incremental append-only particionada por data de lote (`_batch_date`).
-   - Migrar a persistência analítica local para **DuckDB** ou **PostgreSQL** mantendo o mesmo contrato de validação em `qualidade.py`.
-   - Adicionar orquestração agendada e alerta automatizado quando a taxa de rejeição em `silver_rejeitados` ultrapassar o limiar operacional de `2%`.
+    - Substituir o `DROP TABLE` da camada Bronze por ingestão incremental append-only particionada por data de lote (`_batch_date`).
+    - Migrar a persistência analítica local para **DuckDB** ou **PostgreSQL** mantendo o mesmo contrato de validação em `qualidade.py`.
+    - Adicionar orquestração agendada e alerta automatizado quando a taxa de rejeição em `silver_rejeitados` ultrapassar o limiar operacional de `2%`.
 
 ---
 
