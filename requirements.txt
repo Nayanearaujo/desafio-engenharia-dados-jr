@@ -1,8 +1,5 @@
-# Dependências do projeto
-# Este projeto usa apenas bibliotecas nativas do Python.
-# Nenhuma instalação adicional é necessária.
+# A aplicação principal utiliza apenas bibliotecas nativas do Python (sqlite3, os, sys).
+# As dependências abaixo são utilizadas para testes automatizados e qualidade de código (PEP8).
 
-# sqlite3  → nativa (Python 3.x)
-# os       → nativa
-# sys      → nativa
-# typing   → nativa
+pytest>=8.0.0
+ruff>=0.4.0
