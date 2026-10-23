@@ -21,13 +21,17 @@ import relatorios
 # ── Menu ─────────────────────────────────────────────────────────────────────
 
 OPCOES = {
-    "1": ("📦 Listar todos os produtos",            relatorios.relatorio_produtos),
-    "2": ("🔍 Filtrar produtos por categoria",       relatorios.relatorio_categoria),
-    "3": ("👥 Listar clientes cadastrados",          relatorios.relatorio_clientes),
-    "4": ("🧾 Pedidos detalhados (via View SQL)",    relatorios.relatorio_pedidos),
-    "5": ("🏆 Ranking: produtos mais vendidos",      relatorios.relatorio_ranking),
-    "6": ("💰 Faturamento por categoria",            relatorios.relatorio_faturamento),
-    "7": ("⭐ Clientes por volume de compras",       relatorios.relatorio_clientes_vip),
+    "1": ("📦 Listar todos os produtos",                    relatorios.relatorio_produtos),
+    "2": ("🔍 Filtrar produtos por categoria",              relatorios.relatorio_categoria),
+    "3": ("👥 Listar clientes cadastrados",                 relatorios.relatorio_clientes),
+    "4": ("🧾 Pedidos detalhados (via View SQL)",           relatorios.relatorio_pedidos),
+    "5": ("🏆 Ranking: produtos mais vendidos",             relatorios.relatorio_ranking),
+    "6": ("💰 Faturamento por categoria",                   relatorios.relatorio_faturamento),
+    "7": ("⭐ Clientes por volume de compras",              relatorios.relatorio_clientes_vip),
+    # ── Consultas avançadas ───────────────────────────────────────────────────
+    "8": ("🎯 Clientes acima de meta   [HAVING]",           relatorios.relatorio_clientes_meta),
+    "9": ("📊 Produtos acima da média  [Subquery]",         relatorios.relatorio_produtos_acima_media),
+    "A": ("🧠 Desempenho dos produtos  [CTE + CASE WHEN]",  relatorios.relatorio_desempenho_cte),
 }
 
 
