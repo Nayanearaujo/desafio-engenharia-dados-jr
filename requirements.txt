@@ -1,8 +1,6 @@
-# Dependências do projeto
-# Este projeto usa apenas bibliotecas nativas do Python.
-# Nenhuma instalação adicional é necessária.
+# A aplicacao principal utiliza apenas bibliotecas nativas do Python (sqlite3, os, sys).
+# As bibliotecas abaixo sao opcionais, usadas para testes unitarios e geracao de graficos.
 
-# sqlite3  → nativa (Python 3.x)
-# os       → nativa
-# sys      → nativa
-# typing   → nativa
+pytest>=8.0.0
+matplotlib>=3.7.0
+ruff>=0.4.0

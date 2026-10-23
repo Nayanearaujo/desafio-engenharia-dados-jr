@@ -8,10 +8,12 @@ venv/
 .venv/
 env/
 
-# Cache do Python
+# Cache do Python e Testes
 __pycache__/
 *.py[cod]
 *.pyo
+.pytest_cache/
+.ruff_cache/
 
 # macOS
 .DS_Store
@@ -22,5 +24,7 @@ __pycache__/
 *.swp
 *.swo
 
-# Logs
+# Logs e exportacoes temporarias
 *.log
+exports/
+grafico_faturamento.png
