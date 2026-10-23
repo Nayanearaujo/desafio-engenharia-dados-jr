@@ -4,11 +4,11 @@ Cada regra possui funcao isolada para facilitar testes unitarios e auditoria.
 """
 
 import csv
-from datetime import date
 import logging
 import os
 import re
 import sqlite3
+from datetime import date
 from typing import Any
 
 logger = logging.getLogger(__name__)

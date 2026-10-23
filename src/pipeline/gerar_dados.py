@@ -4,11 +4,12 @@ Injeta entre 1% e 3% de anomalias controladas para validacao na camada Silver.
 """
 
 import csv
-from datetime import date, timedelta
 import logging
 import os
 import random
+from datetime import date, timedelta
 from typing import Any
+
 from faker import Faker
 
 logger = logging.getLogger(__name__)
@@ -82,8 +83,10 @@ def gerar_arquivos_raw(
 
     for cid in range(1, num_clientes + 1):
         nome = fake.name()
-        primeiro = nome.split()[0].lower()
-        email = f"{primeiro}.{cid}@exemplo.com.br"
+        letras_ascii = "".join(
+            ch for ch in nome.lower() if "a" <= ch <= "z"
+        )[:10] or "cliente"
+        email = f"{letras_ascii}.{cid}@exemplo.com.br"
         emails_usados.add(email)
         dias_offset = rng.randint(0, 180)
         criado_em = (data_base_cadastro + timedelta(days=dias_offset)).isoformat()
@@ -137,8 +140,8 @@ def gerar_arquivos_raw(
 
     # Perfis de frequencia dos clientes para RFM e Coorte realistas
     clientes_vips = list(range(1, int(num_clientes * 0.20) + 1))
-    clientes_regulares = list(range(int(num_clientes * 0.20) + 1, int(num_clientes * 0.70) + 1))
-    clientes_ocasionais = list(range(int(num_clientes * 0.70) + 1, num_clientes + 1))
+    clientes_regulares = list(range(int(num_clientes * 0.20) + 1, int(num_clientes * 0.82) + 1))
+    clientes_compra_unica = list(range(int(num_clientes * 0.82) + 1, num_clientes + 1))
 
     ids_produtos_validos = list(range(1, len(CATALOGO_PRODUTOS_BASE) + 1))
     item_id_seq = 1
@@ -149,12 +152,12 @@ def gerar_arquivos_raw(
 
     for pid in range(1, num_pedidos + 1):
         sorteio_grupo = rng.random()
-        if sorteio_grupo < 0.50:
+        if sorteio_grupo < 0.52 or not clientes_regulares:
             cid = rng.choice(clientes_vips)
-        elif sorteio_grupo < 0.85:
+        elif sorteio_grupo < 0.96 or not clientes_compra_unica:
             cid = rng.choice(clientes_regulares)
         else:
-            cid = rng.choice(clientes_ocasionais)
+            cid = clientes_compra_unica.pop(0)
 
         dia_offset = int(rng.triangular(0, total_dias, total_dias * 0.65))
         data_ped = (inicio_pedidos + timedelta(days=dia_offset)).isoformat()

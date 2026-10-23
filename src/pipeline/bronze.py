@@ -4,10 +4,10 @@ Adiciona apenas metadados de auditoria (_ingested_at e _source_file).
 """
 
 import csv
-from datetime import datetime, timezone
 import logging
 import os
 import sqlite3
+from datetime import UTC, datetime
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ def carregar_bronze(
     with open(_SQL_BRONZE, "r", encoding="utf-8") as f:
         conn.executescript(f.read())
 
-    instante_ingestao = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    instante_ingestao = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     mapeamento = [
         (

@@ -9,11 +9,10 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import relatorios
 from database import CAMINHO_BANCO, conectar, criar_banco
 from pipeline.executar import run_pipeline
 from pipeline.gold import construir_gold
-import relatorios
-
 
 OPCOES = {
     "1": ("Listar todos os produtos", relatorios.relatorio_produtos),
@@ -75,7 +74,7 @@ def _banco_possui_pipeline() -> bool:
         total = conn.execute("SELECT COUNT(*) FROM pedidos").fetchone()[0]
         conn.close()
         return int(total) > 50
-    except Exception:
+    except Exception:  # noqa: BLE001
         return False
 
 
@@ -101,7 +100,7 @@ def main(argv: list[str] | None = None) -> None:
 
     try:
         conn = conectar()
-    except Exception:
+    except Exception:  # noqa: BLE001
         print("[ERRO] Nao foi possivel conectar ao banco. Encerrando.")
         sys.exit(1)
 
@@ -127,7 +126,7 @@ def main(argv: list[str] | None = None) -> None:
 
             try:
                 funcao(conn)
-            except Exception as erro:
+            except Exception as erro:  # noqa: BLE001
                 print(f"\n  [ERRO] Falha ao gerar relatorio: {erro}")
 
     finally:
