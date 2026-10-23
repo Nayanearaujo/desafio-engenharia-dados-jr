@@ -2,12 +2,14 @@
 Formatacao e exibicao dos relatorios no terminal.
 """
 
+import os
 import sqlite3
 from queries import (
     clientes_acima_de_meta,
     desempenho_produtos_cte,
     faturamento_por_categoria,
     filtrar_por_categoria,
+    inserir_produto,
     listar_clientes,
     listar_produtos,
     pedidos_detalhados,
@@ -256,3 +258,87 @@ def relatorio_desempenho_cte(conn: sqlite3.Connection) -> None:
             f"   R${row['receita_total']:>7.2f}  {row['desempenho']:>10}"
         )
     print()
+
+
+def cadastrar_produto(conn: sqlite3.Connection) -> None:
+    """Permite cadastrar um novo produto via terminal com validacao de dados."""
+    _cabecalho("Cadastrar Novo Produto")
+
+    nome = input("  Nome do produto: ").strip()
+    if not nome:
+        print("  Operacao cancelada: o nome nao pode ficar vazio.")
+        return
+
+    categoria = input("  Categoria (Curso / E-book / Template): ").strip()
+    if not categoria:
+        print("  Operacao cancelada: a categoria nao pode ficar vazia.")
+        return
+
+    try:
+        preco = float(input("  Preco (R$): ").strip().replace(",", "."))
+        estoque = int(input("  Estoque inicial: ").strip())
+        if preco < 0 or estoque < 0:
+            print("  Erro: preco e estoque nao podem ser negativos.")
+            return
+    except ValueError:
+        print("  Erro: informe valores numericos validos para preco e estoque.")
+        return
+
+    novo_id = inserir_produto(conn, nome, categoria, preco, estoque)
+    print(f"\n  Produto '{nome}' cadastrado com sucesso (ID: {novo_id}).\n")
+
+
+def gerar_grafico_faturamento(conn: sqlite3.Connection) -> None:
+    """Exibe grafico de faturamento por categoria e salva imagem PNG com matplotlib."""
+    _cabecalho("Grafico de Faturamento por Categoria")
+    linhas = faturamento_por_categoria(conn)
+
+    if not linhas:
+        _sem_resultados()
+        return
+
+    maior_receita = max(row["receita_total"] for row in linhas) or 1.0
+    for row in linhas:
+        blocos = int((row["receita_total"] / maior_receita) * 30)
+        barra = "#" * blocos
+        print(
+            f"  {row['categoria']:<10} | {barra:<30} R$ {row['receita_total']:>8.2f}"
+        )
+    print()
+
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        categorias = [row["categoria"] for row in linhas]
+        receitas = [row["receita_total"] for row in linhas]
+
+        fig, ax = plt.subplots(figsize=(8, 5))
+        barras = ax.bar(categorias, receitas, color=["#2563eb", "#0891b2", "#0d9488"])
+        ax.set_title("Faturamento por Categoria (R$)", fontsize=13, pad=12)
+        ax.set_xlabel("Categoria")
+        ax.set_ylabel("Receita Total (R$)")
+        ax.grid(axis="y", linestyle="--", alpha=0.4)
+
+        for barra, valor in zip(barras, receitas):
+            ax.text(
+                barra.get_x() + barra.get_width() / 2,
+                barra.get_height() + 15,
+                f"R$ {valor:.2f}",
+                ha="center",
+                va="bottom",
+                fontsize=9,
+            )
+
+        ax.set_ylim(0, max(receitas) * 1.15)
+        plt.tight_layout()
+
+        dir_raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        caminho_img = os.path.join(dir_raiz, "grafico_faturamento.png")
+        plt.savefig(caminho_img, dpi=150)
+        plt.close(fig)
+        print(f"  Arquivo de imagem salvo em: {caminho_img}\n")
+    except ImportError:
+        print("  (Dica: instale 'matplotlib' para tambem exportar o grafico em PNG)\n")
+

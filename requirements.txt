@@ -1,5 +1,6 @@
-# A aplicação principal utiliza apenas bibliotecas nativas do Python (sqlite3, os, sys).
-# As dependências abaixo são utilizadas para testes automatizados e qualidade de código (PEP8).
+# A aplicacao principal utiliza apenas bibliotecas nativas do Python (sqlite3, os, sys).
+# As bibliotecas abaixo sao opcionais, usadas para testes unitarios e geracao de graficos.
 
 pytest>=8.0.0
+matplotlib>=3.7.0
 ruff>=0.4.0

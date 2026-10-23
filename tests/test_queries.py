@@ -130,3 +130,12 @@ def test_desempenho_produtos_cte_case_when(conn):
     assert rotulos.issubset({"Alto", "Medio", "Baixo"})
     assert desempenho[0]["produto"] == "Fundamentos de IA com Python"
     assert desempenho[0]["desempenho"] == "Alto"
+
+
+def test_inserir_produto_cadastra_corretamente(conn):
+    """Deve inserir um novo produto e aumentar o total de produtos cadastrados."""
+    novo_id = queries.inserir_produto(conn, "Docker na Pratica", "Curso", 129.90, 50)
+    assert novo_id == 8
+    produtos = queries.listar_produtos(conn)
+    assert len(produtos) == 8
+

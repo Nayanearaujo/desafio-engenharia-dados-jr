@@ -192,3 +192,19 @@ def desempenho_produtos_cte(conn: sqlite3.Connection) -> list[Any]:
         """
     )
     return cursor.fetchall()
+
+
+def inserir_produto(
+    conn: sqlite3.Connection, nome: str, categoria: str, preco: float, estoque: int
+) -> int:
+    """Insere um novo produto no banco e retorna o ID gerado."""
+    cursor = conn.execute(
+        """
+        INSERT INTO produtos (nome, categoria, preco, estoque)
+        VALUES (?, ?, ?, ?)
+        """,
+        (nome, categoria, preco, estoque),
+    )
+    conn.commit()
+    return int(cursor.lastrowid)
+

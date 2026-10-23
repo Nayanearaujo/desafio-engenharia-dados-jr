@@ -15,7 +15,7 @@ desafio-engenharia-dados-jr/
 │   ├── main.py           # Menu principal no terminal
 │   ├── database.py       # Conexao com o SQLite e criacao do banco
 │   ├── queries.py        # Consultas SQL organizadas em funcoes
-│   └── relatorios.py     # Formatacao e exibicao das tabelas no terminal
+│   └── relatorios.py     # Formatacao, cadastro e geracao de graficos
 ├── tests/
 │   └── test_queries.py   # Testes unitarios com pytest
 ├── .gitignore
@@ -37,6 +37,7 @@ O arquivo `.db` nao fica salvo no repositorio. Sempre que o `main.py` e executad
 ### Recursos SQL Utilizados
 
 - Criacao de tabelas com `PRIMARY KEY`, `FOREIGN KEY`, `NOT NULL`, `UNIQUE` e `CHECK`
+- Insercao dinamica de registros via terminal (`INSERT INTO`)
 - Consultas com `INNER JOIN` e `LEFT JOIN`
 - Filtros com `WHERE` parametrizado e `LOWER()`
 - Agrupamentos com `GROUP BY` e funcoes `COUNT`, `SUM`, `AVG` e `ROUND`
@@ -50,7 +51,7 @@ O arquivo `.db` nao fica salvo no repositorio. Sempre que o `main.py` e executad
 ### 1. Clonar o repositorio e ativar o ambiente virtual
 
 ```bash
-git clone <URL_DO_REPOSITORIO>
+git clone https://github.com/Nayanearaujo/desafio-engenharia-dados-jr.git
 cd desafio-engenharia-dados-jr
 
 python3 -m venv .venv
@@ -62,7 +63,7 @@ No Windows, ative com:
 .venv\Scripts\activate
 ```
 
-### 2. Instalar dependencias (opcional, usado para rodar os testes)
+### 2. Instalar dependencias (opcional, usado para testes e exportacao de grafico PNG)
 
 ```bash
 pip install -r requirements.txt
@@ -90,13 +91,15 @@ python src/main.py
   [ 8] Clientes acima de meta (HAVING)
   [ 9] Produtos acima da media (Subquery)
   [10] Desempenho dos produtos (CTE + CASE WHEN)
+  [11] Cadastrar novo produto
+  [12] Gerar grafico de faturamento (Matplotlib)
   [ 0] Sair
 -------------------------------------------------------
 ```
 
 ## Testes Automatizados
 
-Os testes utilizam um banco SQLite em memoria (`:memory:`) para validar todas as consultas do modulo `queries.py` sem alterar o banco local:
+Os testes utilizam um banco SQLite em memoria (`:memory:`) para validar todas as consultas e insercoes do modulo `queries.py` sem alterar o banco local:
 
 ```bash
 pytest -v

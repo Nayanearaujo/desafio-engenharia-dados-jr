@@ -23,6 +23,8 @@ OPCOES = {
     "8": ("Clientes acima de meta (HAVING)", relatorios.relatorio_clientes_meta),
     "9": ("Produtos acima da media (Subquery)", relatorios.relatorio_produtos_acima_media),
     "10": ("Desempenho dos produtos (CTE + CASE WHEN)", relatorios.relatorio_desempenho_cte),
+    "11": ("Cadastrar novo produto", relatorios.cadastrar_produto),
+    "12": ("Gerar grafico de faturamento (Matplotlib)", relatorios.gerar_grafico_faturamento),
 }
 
 
