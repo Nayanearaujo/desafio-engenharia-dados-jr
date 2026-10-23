@@ -12,13 +12,14 @@ Como rodar:
 import os
 import sqlite3
 import sys
+
 import pytest
 
 # Adiciona src/ ao path para importar os módulos do projeto
 _DIR_RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(_DIR_RAIZ, "src"))
 
-import queries  # noqa: E402
+import queries
 
 _DIR_SQL = os.path.join(_DIR_RAIZ, "sql")
 
@@ -44,8 +45,8 @@ def test_listar_produtos_retorna_todos(conn):
     produtos = queries.listar_produtos(conn)
     assert len(produtos) >= 5
     assert len(produtos) == 7
-    assert "nome" in produtos[0].keys()
-    assert "preco" in produtos[0].keys()
+    assert "nome" in produtos[0].keys()  # noqa: SIM118
+    assert "preco" in produtos[0].keys()  # noqa: SIM118
 
 
 def test_filtrar_por_categoria_existente(conn):
@@ -94,8 +95,8 @@ def test_pedidos_detalhados_usa_view(conn):
     """Deve consultar a VIEW resumo_pedidos e retornar todos os 8 pedidos."""
     pedidos = queries.pedidos_detalhados(conn)
     assert len(pedidos) == 8
-    assert "valor_total" in pedidos[0].keys()
-    assert "total_itens" in pedidos[0].keys()
+    assert "valor_total" in pedidos[0].keys()  # noqa: SIM118
+    assert "total_itens" in pedidos[0].keys()  # noqa: SIM118
 
 
 def test_faturamento_por_categoria(conn):
