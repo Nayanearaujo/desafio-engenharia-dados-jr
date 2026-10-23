@@ -53,6 +53,10 @@ def test_validar_chave_duplicada_e_invalida():
     assert ok_neg is False
     assert motivo_neg == "chave_invalida"
 
+    ok_float, motivo_float = validar_chave_duplicada("4.0", vistos)
+    assert ok_float is False
+    assert motivo_float == "chave_invalida"
+
 
 def test_validar_numero_positivo():
     assert validar_numero_positivo("197.50", "preco") == (True, None)
@@ -65,6 +69,14 @@ def test_validar_numero_positivo():
         "valor_menor_ou_igual_zero:quantidade",
     )
     assert validar_numero_positivo("texto", "preco") == (
+        False,
+        "valor_nao_numerico:preco",
+    )
+    assert validar_numero_positivo("nan", "preco") == (
+        False,
+        "valor_nao_numerico:preco",
+    )
+    assert validar_numero_positivo("inf", "preco") == (
         False,
         "valor_nao_numerico:preco",
     )
@@ -110,6 +122,14 @@ def test_validar_data_iso():
     assert validar_data_iso("20/10/2026", "criado_em") == (
         False,
         "data_invalida:criado_em",
+    )
+    assert validar_data_iso("1900-01-01", "data_pedido") == (
+        False,
+        "data_fora_janela_negocio:data_pedido",
+    )
+    assert validar_data_iso("2099-12-31", "criado_em") == (
+        False,
+        "data_fora_janela_negocio:criado_em",
     )
 
 

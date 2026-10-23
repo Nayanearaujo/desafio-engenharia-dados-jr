@@ -5,10 +5,9 @@ Modulo responsavel pela conexao com o SQLite e criacao do banco de dados.
 import os
 import sqlite3
 
-_DIR_RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CAMINHO_BANCO = os.path.join(_DIR_RAIZ, "loja_digital.db")
+from config import CAMINHO_BANCO, DIR_SQL
 
-_DIR_SQL = os.path.join(_DIR_RAIZ, "sql")
+_DIR_SQL = DIR_SQL
 _BRONZE = os.path.join(_DIR_SQL, "bronze.sql")
 _SCHEMA = os.path.join(_DIR_SQL, "schema.sql")
 _SEED = os.path.join(_DIR_SQL, "seed.sql")

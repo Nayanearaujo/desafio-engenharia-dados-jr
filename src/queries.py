@@ -343,4 +343,9 @@ def resumo_qualidade_dados(conn: sqlite3.Connection) -> list[Any]:
     return cursor.fetchall()
 
 
-
+def historico_execucoes_pipeline(conn: sqlite3.Connection) -> list[Any]:
+    """Retorna o historico auditavel de execucoes do pipeline registrado em pipeline_execucoes."""
+    cursor = conn.execute(
+        "SELECT * FROM pipeline_execucoes ORDER BY run_id DESC"
+    )
+    return cursor.fetchall()
