@@ -38,13 +38,14 @@ CREATE VIEW gold_kpis_executivos AS
     )
     SELECT
         COUNT(pedido_id) AS total_pedidos,
+        SUM(CASE WHEN status = 'pago' THEN 1 ELSE 0 END) AS pedidos_pagos,
         ROUND(COALESCE(SUM(CASE WHEN status = 'pago' THEN valor_pedido ELSE 0 END), 0), 2) AS receita_paga,
         ROUND(COALESCE(SUM(CASE WHEN status = 'pendente' THEN valor_pedido ELSE 0 END), 0), 2) AS receita_pendente,
-        ROUND(COALESCE(AVG(CASE WHEN status != 'cancelado' THEN valor_pedido END), 0), 2) AS ticket_medio_pedido,
+        ROUND(COALESCE(AVG(CASE WHEN status = 'pago' THEN valor_pedido END), 0), 2) AS ticket_medio_pedido,
         ROUND(
             COALESCE(
-                SUM(CASE WHEN status != 'cancelado' THEN valor_pedido ELSE 0 END)
-                / NULLIF(COUNT(DISTINCT CASE WHEN status != 'cancelado' THEN cliente_id END), 0),
+                SUM(CASE WHEN status = 'pago' THEN valor_pedido ELSE 0 END)
+                / NULLIF(COUNT(DISTINCT CASE WHEN status = 'pago' THEN cliente_id END), 0),
                 0
             ),
             2
@@ -59,7 +60,7 @@ CREATE VIEW gold_kpis_executivos AS
         ) AS taxa_cancelamento_pct
     FROM totais_pedidos;
 
--- 3. Faturamento por categoria
+-- 3. Faturamento por categoria (receita confirmada paga)
 CREATE VIEW gold_faturamento_categoria AS
     SELECT
         pr.categoria,
@@ -70,22 +71,22 @@ CREATE VIEW gold_faturamento_categoria AS
     FROM produtos pr
     JOIN itens_pedido ip ON ip.produto_id = pr.id
     JOIN pedidos p ON p.id = ip.pedido_id
-    WHERE p.status != 'cancelado'
+    WHERE p.status = 'pago'
     GROUP BY pr.categoria
     ORDER BY receita_total DESC;
 
--- 4. Curva de Pareto 80/20 por produto
+-- 4. Curva de Pareto 80/20 por produto (sobre receita paga)
 CREATE VIEW gold_pareto_produtos AS
     WITH receita_produtos AS (
         SELECT
             pr.id AS produto_id,
             pr.nome AS produto,
             pr.categoria,
-            COALESCE(SUM(ip.quantidade), 0) AS unidades,
-            ROUND(COALESCE(SUM(ip.quantidade * ip.preco_unit), 0), 2) AS receita
+            COALESCE(SUM(CASE WHEN p.status = 'pago' THEN ip.quantidade ELSE 0 END), 0) AS unidades,
+            ROUND(COALESCE(SUM(CASE WHEN p.status = 'pago' THEN ip.quantidade * ip.preco_unit ELSE 0 END), 0), 2) AS receita
         FROM produtos pr
         LEFT JOIN itens_pedido ip ON ip.produto_id = pr.id
-        LEFT JOIN pedidos p ON p.id = ip.pedido_id AND p.status != 'cancelado'
+        LEFT JOIN pedidos p ON p.id = ip.pedido_id
         GROUP BY pr.id, pr.nome, pr.categoria
     ),
     pareto_calc AS (
@@ -121,7 +122,7 @@ CREATE VIEW gold_pareto_produtos AS
     FROM pareto_calc
     ORDER BY posicao_ranking, produto_id;
 
--- 5. Receita mensal com crescimento MoM (LAG) e media movel de 3 meses
+-- 5. Receita mensal paga com crescimento MoM (LAG) e media movel de 3 meses
 CREATE VIEW gold_receita_mensal AS
     WITH vendas_mensais AS (
         SELECT
@@ -130,7 +131,7 @@ CREATE VIEW gold_receita_mensal AS
             ROUND(SUM(ip.quantidade * ip.preco_unit), 2) AS receita_liquida
         FROM pedidos p
         JOIN itens_pedido ip ON ip.pedido_id = p.id
-        WHERE p.status != 'cancelado'
+        WHERE p.status = 'pago'
         GROUP BY substr(p.data_pedido, 1, 7)
     ),
     com_lag AS (
@@ -161,10 +162,10 @@ CREATE VIEW gold_receita_mensal AS
     FROM com_lag
     ORDER BY mes;
 
--- 6. Segmentacao RFM (Recencia, Frequencia, Valor Monetario)
+-- 6. Segmentacao RFM (Recencia, Frequencia, Valor Monetario sobre pedidos pagos)
 CREATE VIEW gold_rfm_clientes AS
     WITH ref_date AS (
-        SELECT MAX(data_pedido) AS data_max FROM pedidos WHERE status != 'cancelado'
+        SELECT MAX(data_pedido) AS data_max FROM pedidos WHERE status = 'pago'
     ),
     base_rfm AS (
         SELECT
@@ -180,7 +181,7 @@ CREATE VIEW gold_rfm_clientes AS
         FROM clientes c
         JOIN pedidos p ON p.cliente_id = c.id
         JOIN itens_pedido ip ON ip.pedido_id = p.id
-        WHERE p.status != 'cancelado'
+        WHERE p.status = 'pago'
         GROUP BY c.id, c.nome, c.cidade
     ),
     quartis AS (
@@ -215,14 +216,14 @@ CREATE VIEW gold_rfm_clientes AS
     FROM quartis
     ORDER BY valor_monetario DESC;
 
--- 7. Retencao por coorte (mes do primeiro pedido)
+-- 7. Retencao por coorte (mes do primeiro pedido pago)
 CREATE VIEW gold_coorte_retencao AS
     WITH primeira_compra AS (
         SELECT
             cliente_id,
              MIN(substr(data_pedido, 1, 7)) AS coorte_mes
         FROM pedidos
-        WHERE status != 'cancelado'
+        WHERE status = 'pago'
         GROUP BY cliente_id
     ),
     atividade_mensal AS (
@@ -234,7 +235,7 @@ CREATE VIEW gold_coorte_retencao AS
             + (CAST(substr(p.data_pedido, 6, 2) AS INTEGER) - CAST(substr(pc.coorte_mes, 6, 2) AS INTEGER)) AS indice_mes
         FROM pedidos p
         JOIN primeira_compra pc ON pc.cliente_id = p.cliente_id
-        WHERE p.status != 'cancelado'
+        WHERE p.status = 'pago'
     ),
     tamanho_coortes AS (
         SELECT
@@ -255,14 +256,14 @@ CREATE VIEW gold_coorte_retencao AS
     GROUP BY a.coorte_mes, a.mes_pedido, a.indice_mes, t.clientes_iniciais
     ORDER BY a.coorte_mes, a.indice_mes;
 
--- 8. Taxa global de recompra
+-- 8. Taxa global de recompra (sobre clientes pagantes)
 CREATE VIEW gold_taxa_recompra AS
     WITH pedidos_por_cliente AS (
         SELECT
             cliente_id,
             COUNT(DISTINCT id) AS qtd_pedidos
         FROM pedidos
-        WHERE status != 'cancelado'
+        WHERE status = 'pago'
         GROUP BY cliente_id
     )
     SELECT
@@ -297,7 +298,7 @@ CREATE VIEW gold_cancelamento_categoria_mes AS
     GROUP BY substr(p.data_pedido, 1, 7), pr.categoria
     ORDER BY mes DESC, taxa_cancelamento_pct DESC;
 
--- 10. Receita e cancelamento diario (base para Carta de Controle Lean Six Sigma 3-Sigma)
+-- 10. Receita paga e cancelamento diario (base para Carta de Controle I-MR Lean Six Sigma)
 CREATE VIEW gold_receita_diaria AS
     WITH pedidos_dia AS (
         SELECT
@@ -318,7 +319,7 @@ CREATE VIEW gold_receita_diaria AS
             2
         ) AS taxa_cancelamento_pct,
         ROUND(
-            SUM(CASE WHEN status != 'cancelado' THEN valor_pedido ELSE 0 END),
+            SUM(CASE WHEN status = 'pago' THEN valor_pedido ELSE 0 END),
             2
         ) AS receita_liquida_dia
     FROM pedidos_dia
