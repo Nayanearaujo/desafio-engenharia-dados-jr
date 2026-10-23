@@ -1,6 +1,6 @@
-# Loja Digital: Pipeline em Arquitetura Medalha e Controle Estatístico de Processo
+# Loja Digital: Pipeline de Engenharia de Dados em Arquitetura Medalha
 
-![CI - Qualidade e Testes](https://github.com/Nayanearaujo/desafio-engenharia-dados-jr/actions/workflows/ci.yml/badge.svg)
+[![CI - Qualidade e Testes](https://github.com/Nayanearaujo/desafio-engenharia-dados-jr/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Nayanearaujo/desafio-engenharia-dados-jr/actions/workflows/ci.yml)
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue)
 ![SQLite 3](https://img.shields.io/badge/Database-SQLite%203-003B57)
 ![Code Style: Ruff](https://img.shields.io/badge/Code%20Style-Ruff-261230)
@@ -11,7 +11,7 @@ Neste projeto, construí e evoluí um pipeline de dados e um painel analítico p
 
 A versão inicial do repositório atendia aos requisitos do Desafio Final da Trilha de Engenharia de Dados Júnior: aplicação em Python e SQLite com menu interativo no terminal (opções 1 a 14), modelagem relacional, consultas SQL (JOINs, GROUP BY, HAVING, Subquery, CTE, Window Functions e View) e 14 testes unitários.
 
-Para evoluir a solução mantendo a simplicidade de execução local e 100% de compatibilidade com o código existente, implementei uma **Arquitetura Medalha (Bronze, Silver e Gold)**. O pipeline gera dados sintéticos determinísticos para 12 meses de operação (`5.000` pedidos válidos), realiza ingestão bruta espelhada do CSV, aplica regras de validação com quarentena em `silver_rejeitados` e constrói uma camada Gold com indicadores de crescimento mensal (MoM), segmentação RFM, retenção por coorte, Pareto 80/20 e **Controle Estatístico de Processo (Carta I-MR ajustada para sazonalidade)** a partir da metodologia Lean Six Sigma.
+Para evoluir a solução mantendo a simplicidade de execução local e 100% de compatibilidade com o código existente, implementei uma **Arquitetura Medalha (Bronze, Silver e Gold)**. O pipeline gera dados sintéticos para 12 meses de operação (`5.000` pedidos válidos), realiza ingestão bruta espelhada do CSV, aplica regras de validação com quarentena em `silver_rejeitados` e constrói uma camada Gold com indicadores de crescimento mensal (MoM), segmentação RFM, retenção por coorte, Pareto 80/20 e monitoramento de anomalias na receita diária (Carta I-MR ajustada para sazonalidade).
 
 ---
 
@@ -40,7 +40,7 @@ flowchart LR
 
     subgraph Gold["4. Camada Gold (Analytics e Negocio)"]
         S --> G1["Views Analiticas SQL (status = pago)\ngold_receita_mensal | gold_rfm_clientes\ngold_coorte_retencao | gold_pareto_produtos"]
-        S --> G2["Controle de Processo (Pandas)\nCarta I-MR Dessazonalizada\n(sigma_IMR = MR_barra / 1,128)"]
+        S --> G2["Monitoramento Diario (Pandas)\nCarta I-MR Dessazonalizada\n(sigma_IMR = MR_barra / 1,128)"]
         G1 & G2 --> OUT["Entregas Executivas\nDashboard PNG | 11 CSVs em exports/\nMenu Interativo (Opcoes 1 a 20)"]
     end
 ```
@@ -49,7 +49,7 @@ flowchart LR
 
 ## 3. Modelo de Dados Relacional (Camada Silver)
 
-Na camada Silver, o SQLite opera com `PRAGMA foreign_keys = ON`, restrições de domínio (`CHECK`, `NOT NULL`, `UNIQUE`) e tipagem definida. Os registros que violam qualquer regra na transição Bronze para Silver são desviados para `silver_rejeitados` com o payload JSON original e o motivo da rejeição.
+Na camada Silver, o SQLite opera com `PRAGMA foreign_keys = ON`, restrições de domínio (`CHECK`, `NOT NULL`, `UNIQUE`) e tipagem definida. Os registros que violam qualquer regra na transição Bronze para Silver são desviados para `silver_rejeitados` com o registro bruto original (`registro_raw`) e o motivo da rejeição.
 
 ```mermaid
 erDiagram
@@ -91,9 +91,8 @@ erDiagram
     SILVER_REJEITADOS {
         int id PK
         text tabela_origem
-        text registro_id
         text motivo
-        text payload_json
+        text registro_raw
         text rejeitado_em
     }
 ```
@@ -102,19 +101,24 @@ erDiagram
 
 ## 4. Principais Insights e Reconciliação de KPIs (Camada Gold)
 
-> **Reprodutibilidade e Contrato de Status**: todos os números abaixo foram gerados deterministicamente com **semente `42`, Python `3.11.4` e Faker `40.43.0`**.  
+> **Valores de Referência e Contrato de Status**: os números de referência abaixo são gerados com **semente `42` (`Faker 40.43.0`)**.  
 > Todos os **KPIs financeiros e de clientes da camada Gold** (`Receita Paga`, `Ticket Médio Pago`, `LTV Médio Pago`, `Receita Mensal MoM`, `Matriz RFM`, `Coorte`, `Taxa de Recompra`, `Pareto Gold` e `Carta de Controle`) filtram estritamente **`status = 'pago'`**, garantindo reconciliação aritmética exata entre todos os painéis. As consultas operacionais legadas da camada Silver (opções 4, 6, 7, 10 e 11 do menu original) mantêm o filtro `status != 'cancelado'` (`pago + pendente = R$ 2.635.945,00`) para preservar o comportamento original dos testes.
 
-- **Receita Confirmada e Conversão**: **R$ 2.248.527,00** em **3.830 pedidos pagos** (taxa de conversão de **76,6%** sobre os 5.000 pedidos válidos; **690 pedidos pendentes** somam R$ 387.418,00 e **480 cancelados** representam **9,6%**).
-- **Ticket Médio Pago e LTV Pago**:
-  - `Ticket Médio Pago` = `R$ 2.248.527,00 ÷ 3.830 pedidos pagos` = **R$ 587,08**
-  - `LTV Médio Pago` = `R$ 2.248.527,00 ÷ 198 clientes pagantes` = **R$ 11.356,20** *(2 dos 200 clientes válidos possuem apenas pedidos pendentes/cancelados).*
-- **Curva de Pareto 80/20 (sobre Receita Paga)**: **4 dos 30 produtos (13,3% do catálogo)** concentram **80,8% da receita paga** (`R$ 1.816.299,00` de `R$ 2.248.527,00`).
-- **Sazonalidade e Crescimento Mensal (MoM e MM3M)**: os 12 meses de receita paga somam exatamente **R$ 2.248.527,00**, atingindo o pico em **junho de 2026 (`2026-06`) com R$ 366.076,00** (média móvel trimestral de R$ 324.870,33).
-- **Matriz RFM e Recompra**: a taxa de recompra entre clientes pagantes é de **82,8%** (`164` recorrentes em `198` compradores). A soma dos 4 segmentos fecha em **R$ 2.248.527,00**: **Campeões** (`63` clientes | **R$ 1.346.807,00** | **59,9%**), **Inativos** (`96` clientes | **R$ 440.472,00** | **19,6%**), **Leais** (`30` clientes | **R$ 376.465,00** | **16,7%**) e **Em risco** (`9` clientes | **R$ 84.783,00** | **3,8%**).
-- **Controle Estatístico de Processo (Carta I-MR Dessazonalizada)**: como a série diária possui sazonalidade acentuada, uma carta de Shewhart estática usando o desvio-padrão amostral global ($s = 4.589{,}17\text{ BRL}$) inflaria os limites e mascararia anomalias fora do pico. Para tratar a não-estacionariedade, extraí a tendência sazonal via média móvel centrada de 15 dias ($\hat{T}_t$) e apliquei sobre os resíduos ($e_t = y_t - \hat{T}_t$) o estimador de curto prazo por **Amplitude Móvel (Carta I-MR)**:
+| Indicador Executivo (Camada Gold) | Fórmula / Base de Cálculo (`status = 'pago'`) | Valor Reconciliado |
+|---|---|---:|
+| **Receita Paga Confirmada** | Soma dos itens de `3.830` pedidos pagos (`76,6%` de conversão) | **R$ 2.248.527,00** |
+| **Ticket Médio Pago** | `R$ 2.248.527,00 ÷ 3.830 pedidos pagos` | **R$ 587,08** |
+| **LTV Médio Pago** | `R$ 2.248.527,00 ÷ 198 clientes pagantes` | **R$ 11.356,20** |
+| **Taxa de Recompra (Pagantes)** | `164 clientes recorrentes (≥ 2 compras pagas) ÷ 198 pagantes` | **82,8%** |
+| **Curva de Pareto 80/20** | `4 de 30 produtos (13,3%)` somam `R$ 1.816.299,00` | **80,8% da receita paga** |
+| **Pico Sazonal Mensal (`2026-06`)** | Maior faturamento mensal pago (MM3M de `R$ 324.870,33`) | **R$ 366.076,00** |
+| **Dispersão de Curto Prazo ($\hat{\sigma}_{IMR}$)** | Amplitude móvel dos resíduos (`R$ 2.882,94 ÷ 1,128`) | **R$ 2.555,79** |
+
+- **Receita Pendente e Cancelamentos**: além dos `3.830` pedidos pagos (`76,60%`), a base de referência possui **688 pedidos pendentes** (`R$ 387.418,00` / `13,76%`) e **482 pedidos cancelados** (`9,64%`, exibido como `9,6%` nas views). *(2 dos 200 clientes válidos possuem apenas pedidos pendentes/cancelados).*
+- **Matriz RFM (100% reconciliada com a Receita Paga)**: a soma dos 4 segmentos fecha exatamente em **R$ 2.248.527,00**: **Campeões** (`63` clientes | **R$ 1.346.807,00** | **59,9%**), **Inativos** (`96` clientes | **R$ 440.472,00** | **19,6%**), **Leais** (`30` clientes | **R$ 376.465,00** | **16,7%**) e **Em risco** (`9` clientes | **R$ 84.783,00** | **3,8%**).
+- **Monitoramento de Anomalias Diárias (Carta I-MR Dessazonalizada)**: como a série diária possui sazonalidade acentuada, uma carta estática usando o desvio-padrão amostral global ($s = 4.589{,}17\text{ BRL}$) inflaria os limites e mascararia anomalias fora do pico. Para tratar a não-estacionariedade, extraí a tendência sazonal via média móvel centrada de 15 dias ($\hat{T}_t$) e apliquei sobre os resíduos ($e_t = y_t - \hat{T}_t$) o estimador de curto prazo por **Amplitude Móvel (Carta I-MR)**:
   $$\hat{\sigma}_{IMR} = \frac{\overline{MR}}{d_2} = \frac{2.882{,}94}{1{,}128} = 2.555{,}79\text{ BRL}$$
-  Com a banda dinâmica $\hat{T}_t \pm 3\hat{\sigma}_{IMR}$, o modelo detecta exatamente os **2 dias com causas especiais sintéticas injetadas na simulação**: `2026-02-28` (`R$ 14.041,00`, $Z = +3{,}16\sigma$) e `2026-07-04` (`R$ 40.227,00`, $Z = +10{,}58\sigma$).
+  Com a banda dinâmica $\hat{T}_t \pm 3\hat{\sigma}_{IMR}$, o modelo detecta exatamente os **2 dias com picos sintéticos injetados na simulação**: `2026-02-28` (`R$ 14.041,00`, $Z = +3{,}16\sigma$) e `2026-07-04` (`R$ 40.227,00`, $Z = +10{,}58\sigma$).
 
 ---
 
@@ -194,6 +198,39 @@ python src/main.py
 python src/main.py --demo
 ```
 
+<details>
+<summary><strong>Ver as 20 opções do menu interativo no terminal (1 a 14 originais + 15 a 20 Arquitetura Medalha)</strong></summary>
+
+```text
+==============================================================
+  LOJA DIGITAL - PAINEL DE RELATORIOS E ARQUITETURA MEDALHA
+==============================================================
+  [ 1] Listar todos os produtos
+  [ 2] Filtrar produtos por categoria
+  [ 3] Listar clientes cadastrados
+  [ 4] Pedidos detalhados (View SQL)
+  [ 5] Ranking de produtos mais vendidos
+  [ 6] Faturamento por categoria
+  [ 7] Clientes por volume de compras
+  [ 8] Clientes acima de meta (HAVING)
+  [ 9] Produtos acima da media (Subquery)
+  [10] Desempenho dos produtos (CTE + CASE WHEN)
+  [11] KPIs executivos e Curva de Pareto (Window Function)
+  [12] Cadastrar novo produto
+  [13] Gerar Dashboard Executivo (Matplotlib)
+  [14] Automatizar exportacao analitica (CSV)
+  [15] Executar pipeline Medalha (Bronze -> Silver -> Gold)
+  [16] Relatorio de qualidade e quarentena (Silver)
+  [17] Receita mensal, MoM e media movel 3M (Gold)
+  [18] Segmentacao RFM de clientes (Gold)
+  [19] Taxa de recompra e retencao por coorte (Gold)
+  [20] Cancelamentos e Carta de Controle 3-Sigma (Gold)
+  [ 0] Sair
+--------------------------------------------------------------
+```
+
+</details>
+
 ---
 
 ## 8. Estrutura de Pastas
@@ -263,11 +300,12 @@ ruff check src/ tests/
 - **Engenharia de Dados e ETL/ELT**: implementação de Arquitetura Medalha (Bronze, Silver, Gold), carga idempotente, metadados de ingestão (`_ingested_at`, `_source_file`) e logs operacionais de contagem por camada.
 - **Validação de Esquema e Quarentena de Dados**: validação programática de domínio, integridade referencial, detecção de anomalias e isolamento em tabela de quarentena (`silver_rejeitados`).
 - **SQL Analítico**: `CTE (WITH)`, `Window Functions` (`LAG()`, `RANK()`, `NTILE(4)`, `SUM() OVER` e `AVG() OVER` com frame móvel), `VIEWs`, `Subqueries`, `HAVING` e `CASE WHEN`.
-- **Analytics e Controle Estatístico de Processo (Lean Six Sigma)**: Curva de Pareto 80/20, segmentação RFM, retenção por coorte, crescimento MoM e Carta de Controle de Indivíduos e Amplitude Móvel (I-MR) sobre resíduos dessazonalizados.
+- **Analytics e Monitoramento de Séries Temporais**: Curva de Pareto 80/20, segmentação RFM, retenção por coorte, crescimento MoM e Carta de Controle (I-MR) sobre resíduos dessazonalizados.
 - **Engenharia de Software para Dados**: testes automatizados com `pytest` e `pytest-cov`, linting com `ruff`, CLI com `argparse` e Integração Contínua com **GitHub Actions**.
 
 ---
 
 ## 12. Autora
 
-Nayane Araujo · [LinkedIn](https://www.linkedin.com/in/nayane-oaraujo) · [Portfólio](https://nayanearaujo.github.io/) · [GitHub](https://github.com/Nayanearaujo)
+**Nayane Araujo**  
+[LinkedIn](https://www.linkedin.com/in/nayane-oaraujo) · [Portfólio](https://nayanearaujo.github.io/) · [GitHub](https://github.com/Nayanearaujo)

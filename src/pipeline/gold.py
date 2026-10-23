@@ -26,6 +26,15 @@ def construir_gold(conn: sqlite3.Connection) -> None:
     logger.info("Camada Gold atualizada com sucesso (views gold_* prontas).")
 
 
+def _garantir_gold(conn: sqlite3.Connection) -> None:
+    """Garante que as views Gold existam sem recria-las ou logar repetidamente."""
+    existe = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'view' AND name = 'gold_receita_diaria'"
+    ).fetchone()
+    if not existe:
+        construir_gold(conn)
+
+
 def calcular_carta_controle_diaria(
     conn: sqlite3.Connection, coluna_metrica: str = "receita_liquida_dia"
 ) -> dict[str, Any]:
@@ -39,7 +48,7 @@ def calcular_carta_controle_diaria(
       - Banda dinamica 3-Sigma: T_t +/- 3 * sigma_imr
     Tambem registra o desvio-padrao amostral global para comparacao metodologica.
     """
-    construir_gold(conn)
+    _garantir_gold(conn)
     rows = [
         dict(r) for r in conn.execute("SELECT * FROM gold_receita_diaria").fetchall()
     ]
@@ -129,7 +138,7 @@ def exportar_camada_gold(
 ) -> dict[str, int]:
     """Exporta todas as visoes Gold e a Carta de Controle para CSVs em exports/."""
     os.makedirs(pasta_exports, exist_ok=True)
-    construir_gold(conn)
+    _garantir_gold(conn)
 
     consultas_views = [
         ("faturamento_categorias.csv", "SELECT * FROM gold_faturamento_categoria"),
