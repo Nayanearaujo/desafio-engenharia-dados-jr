@@ -1,0 +1,8 @@
+# Dependências do projeto
+# Este projeto usa apenas bibliotecas nativas do Python.
+# Nenhuma instalação adicional é necessária.
+
+# sqlite3  → nativa (Python 3.x)
+# os       → nativa
+# sys      → nativa
+# typing   → nativa

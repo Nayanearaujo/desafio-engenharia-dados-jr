@@ -1,0 +1,26 @@
+# Arquivos gerados pelo banco SQLite (não vão para o repositório)
+*.db
+*.db-shm
+*.db-wal
+
+# Ambiente virtual Python
+venv/
+.venv/
+env/
+
+# Cache do Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# macOS
+.DS_Store
+
+# Editores e IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
