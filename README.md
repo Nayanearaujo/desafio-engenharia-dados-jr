@@ -2,7 +2,7 @@
 
 Projeto final da **Trilha de Engenharia de Dados JR** da [DIO](https://dio.me).
 
-Aplicação de terminal que combina um banco de dados **SQLite** com **Python**, gerando relatórios interativos sobre uma loja de produtos digitais (cursos, e-books e templates).
+Aplicação de linha de comando que integra **SQLite** e **Python** para gerenciar e analisar dados de uma loja de produtos digitais e criativos (cursos, e-books e templates).
 
 ---
 
@@ -11,13 +11,15 @@ Aplicação de terminal que combina um banco de dados **SQLite** com **Python**,
 ```
 desafio-engenharia-dados-jr/
 ├── sql/
-│   ├── schema.sql        # Criação das tabelas + VIEW
-│   └── seed.sql          # Dados de exemplo (insert)
+│   ├── schema.sql        # Criação das 4 tabelas (PK/FK) + VIEW resumo_pedidos
+│   └── seed.sql          # Carga inicial de dados (clientes, produtos, pedidos, itens)
 ├── src/
-│   ├── main.py           # Ponto de entrada — menu interativo
-│   ├── database.py       # Conexão e criação do banco SQLite
-│   ├── queries.py        # Todas as consultas SQL (JOIN, WHERE, GROUP BY…)
-│   └── relatorios.py     # Formatação e exibição no terminal
+│   ├── main.py           # Ponto de entrada — menu interativo no terminal
+│   ├── database.py       # Conexão SQLite e criação/reset automático do banco
+│   ├── queries.py        # Consultas SQL organizadas em funções
+│   └── relatorios.py     # Formatação tabular e exibição no terminal
+├── tests/
+│   └── test_queries.py   # Testes automatizados com pytest (banco em memória)
 ├── .gitignore
 ├── requirements.txt
 └── README.md
@@ -25,80 +27,108 @@ desafio-engenharia-dados-jr/
 
 ---
 
-## 🗃️ Banco de Dados
+## 🗃️ Modelo de Dados e Cobertura da Trilha SQL
 
-O banco **não fica no repositório** — ele é gerado automaticamente ao rodar o projeto.
+O arquivo `.db` não é versionado no Git — ele é recriado automaticamente sempre que a aplicação é iniciada a partir de `sql/schema.sql` e `sql/seed.sql`.
 
-### Tabelas
+### Tabelas Relacionadas
 
-| Tabela         | Descrição                                        |
-|----------------|--------------------------------------------------|
-| `clientes`     | Dados dos clientes (nome, e-mail, cidade)        |
-| `produtos`     | Catálogo de produtos (nome, categoria, preço)    |
-| `pedidos`      | Pedidos realizados, com status                   |
-| `itens_pedido` | Itens de cada pedido (produto, quantidade, preço)|
+```
+clientes (1) ──< pedidos (1) ──< itens_pedido >── (1) produtos
+```
 
-### Relacionamentos
-- `pedidos.cliente_id` → `clientes.id` (FK)
-- `itens_pedido.pedido_id` → `pedidos.id` (FK)
-- `itens_pedido.produto_id` → `produtos.id` (FK)
+| Tabela         | Descrição                                                   |
+|----------------|-------------------------------------------------------------|
+| `clientes`     | Cadastro de clientes (`id`, `nome`, `email`, `cidade`, `criado_em`) |
+| `produtos`     | Catálogo digital (`id`, `nome`, `categoria`, `preco`, `estoque`) |
+| `pedidos`      | Cabeçalho do pedido com FK para `clientes` e `status`       |
+| `itens_pedido` | Itens vendidos com FKs para `pedidos` e `produtos`          |
 
-### Conceitos SQL utilizados
-- ✅ `JOIN` (INNER JOIN entre 3+ tabelas)
-- ✅ `WHERE` com parâmetro (evita SQL injection)
-- ✅ `GROUP BY` + `COUNT`, `SUM`, `AVG`
-- ✅ `VIEW` (`resumo_pedidos`) com JOIN e agregação
+### Conceitos SQL Implementados
+
+- ✅ **DDL & DML**: `CREATE TABLE`, `DROP TABLE`, `INSERT INTO`, constraints `CHECK`, `NOT NULL`, `UNIQUE`, `PRIMARY KEY` e `FOREIGN KEY`
+- ✅ **Filtros e Strings**: `WHERE`, `LOWER()` e parâmetros `?` contra SQL Injection
+- ✅ **Junções (`JOIN`)**: `INNER JOIN` entre 3 tabelas e `LEFT JOIN` para produtos sem vendas
+- ✅ **Agregações e Agrupamento**: `GROUP BY`, `COUNT`, `SUM`, `AVG`, `ROUND`
+- ✅ **Filtro Pós-Agregação (`HAVING`)**: clientes que superaram uma meta financeira
+- ✅ **Subconsulta (`Subquery`)**: produtos com preço acima da média geral do catálogo
+- ✅ **CTE (`WITH`) + `CASE WHEN` + `COALESCE`**: classificação de desempenho de vendas por faixa de receita
+- ✅ **`VIEW` (`resumo_pedidos`)**: visão consolidada de pedidos com total de itens e valor total
 
 ---
 
-## ▶️ Como Rodar
+## ▶️ Como Configurar e Rodar
 
-**Pré-requisito:** Python 3.8 ou superior. Nenhuma dependência externa.
+### 1. Clonar o repositório e criar o ambiente virtual
 
 ```bash
-# Clone o repositório
-git clone <URL-do-seu-repositorio>
+git clone <URL-DO-SEU-REPOSITORIO>
 cd desafio-engenharia-dados-jr
 
-# Rode o projeto
+# Criar e ativar o ambiente virtual (.venv)
+python3 -m venv .venv
+source .venv/bin/activate   # Linux/macOS
+# .venv\Scripts\activate    # Windows
+```
+
+### 2. Instalar dependências de desenvolvimento (opcional para testes/lint)
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Executar a aplicação
+
+```bash
 python src/main.py
 ```
 
-O banco será criado automaticamente na primeira execução.
-
 ---
 
-## 📋 Menu Disponível
+## 📋 Menu Interativo no Terminal
 
+```text
+═══════════════════════════════════════════════════════
+  🛒  LOJA DIGITAL — PAINEL DE RELATÓRIOS
+═══════════════════════════════════════════════════════
+  [1] 📦 Listar todos os produtos
+  [2] 🔍 Filtrar produtos por categoria
+  [3] 👥 Listar clientes cadastrados
+  [4] 🧾 Pedidos detalhados (via View SQL)
+  [5] 🏆 Ranking: produtos mais vendidos
+  [6] 💰 Faturamento por categoria
+  [7] ⭐ Clientes por volume de compras
+  [8] 🎯 Clientes acima de meta   [HAVING]
+  [9] 📊 Produtos acima da média  [Subquery]
+  [A] 🧠 Desempenho dos produtos  [CTE + CASE WHEN]
+  [0] Sair
 ```
-[1] 📦 Listar todos os produtos
-[2] 🔍 Filtrar produtos por categoria
-[3] 👥 Listar clientes cadastrados
-[4] 🧾 Pedidos detalhados (via View SQL)
-[5] 🏆 Ranking: produtos mais vendidos
-[6] 💰 Faturamento por categoria
-[7] ⭐ Clientes por volume de compras
-[0] Sair
+
+---
+
+## 🧪 Testes Automatizados e Qualidade de Código (Bônus)
+
+Os testes utilizam um banco SQLite em memória (`:memory:`), garantindo rapidez e isolamento sem alterar o arquivo `loja_digital.db`:
+
+```bash
+# Executar os 10 testes unitários
+pytest -v
+
+# Verificar padronização PEP8 com Ruff
+ruff check src/ tests/
 ```
 
 ---
 
-## 🛡️ Boas Práticas Implementadas
+## 🛡️ Boas Práticas de Engenharia de Dados
 
-- **Tratamento de erros** com `try/except` em conexão, leitura de scripts SQL e execução de queries
-- **Separação de responsabilidades**: cada módulo tem uma função clara
-- **Parâmetros SQL** para evitar SQL injection
-- **`.gitignore`** excluindo o arquivo `.db`, cache Python e ambiente virtual
-
----
-
-## 🧰 Tecnologias
-
-- Python 3.x (biblioteca padrão: `sqlite3`, `os`, `sys`)
-- SQLite 3
+- **Modularização**: separação clara entre persistência (`database.py`), consultas (`queries.py`), visualização (`relatorios.py`) e orquestração (`main.py`).
+- **Tratamento de Erros (`try/except`)**: proteção na abertura de conexão, leitura de scripts `.sql`, entradas do usuário e interrupção via teclado (`Ctrl+C`).
+- **Segurança**: todas as entradas de usuário utilizam queries parametrizadas (`?`).
+- **Git Workflow**: desenvolvimento em branch dedicada (`feature/loja-digital`) com histórico de commits semânticos e progressivos.
 
 ---
 
 ## 👩‍💻 Autora
 
-Desenvolvido por **Nayane Araújo** como projeto final da Trilha de Engenharia de Dados JR — [DIO](https://dio.me).
+Desenvolvido por **Nayane Araújo** como projeto final da Trilha de Engenharia de Dados JR.
