@@ -1,134 +1,107 @@
-# 🛒 Loja Digital — Painel de Relatórios
+# Loja Digital - Painel de Relatorios
 
-Projeto final da **Trilha de Engenharia de Dados JR** da [DIO](https://dio.me).
+Projeto final desenvolvido para a Trilha de Engenharia de Dados Junior.
 
-Aplicação de linha de comando que integra **SQLite** e **Python** para gerenciar e analisar dados de uma loja de produtos digitais e criativos (cursos, e-books e templates).
+Aplicacao de terminal que utiliza Python e SQLite para gerenciar e gerar relatorios de vendas de uma loja de produtos digitais (cursos, e-books e templates).
 
----
+## Estrutura do Projeto
 
-## 📁 Estrutura do Projeto
-
-```
+```text
 desafio-engenharia-dados-jr/
 ├── sql/
-│   ├── schema.sql        # Criação das 4 tabelas (PK/FK) + VIEW resumo_pedidos
-│   └── seed.sql          # Carga inicial de dados (clientes, produtos, pedidos, itens)
+│   ├── schema.sql        # Criacao das tabelas, relacionamentos e view
+│   └── seed.sql          # Dados de exemplo para testes
 ├── src/
-│   ├── main.py           # Ponto de entrada — menu interativo no terminal
-│   ├── database.py       # Conexão SQLite e criação/reset automático do banco
-│   ├── queries.py        # Consultas SQL organizadas em funções
-│   └── relatorios.py     # Formatação tabular e exibição no terminal
+│   ├── main.py           # Menu principal no terminal
+│   ├── database.py       # Conexao com o SQLite e criacao do banco
+│   ├── queries.py        # Consultas SQL organizadas em funcoes
+│   └── relatorios.py     # Formatacao e exibicao das tabelas no terminal
 ├── tests/
-│   └── test_queries.py   # Testes automatizados com pytest (banco em memória)
+│   └── test_queries.py   # Testes unitarios com pytest
 ├── .gitignore
 ├── requirements.txt
 └── README.md
 ```
 
----
+## Banco de Dados
 
-## 🗃️ Modelo de Dados e Cobertura da Trilha SQL
+O arquivo `.db` nao fica salvo no repositorio. Sempre que o `main.py` e executado, o sistema le os arquivos `sql/schema.sql` e `sql/seed.sql` e recria o banco automaticamente.
 
-O arquivo `.db` não é versionado no Git — ele é recriado automaticamente sempre que a aplicação é iniciada a partir de `sql/schema.sql` e `sql/seed.sql`.
+### Tabelas e Relacionamentos
 
-### Tabelas Relacionadas
+- `clientes`: dados cadastrais dos clientes (`id`, `nome`, `email`, `cidade`, `criado_em`)
+- `produtos`: catalogo de itens digitais (`id`, `nome`, `categoria`, `preco`, `estoque`)
+- `pedidos`: registro dos pedidos com chave estrangeira para `clientes`
+- `itens_pedido`: itens de cada pedido com chaves estrangeiras para `pedidos` e `produtos`
 
-```
-clientes (1) ──< pedidos (1) ──< itens_pedido >── (1) produtos
-```
+### Recursos SQL Utilizados
 
-| Tabela         | Descrição                                                   |
-|----------------|-------------------------------------------------------------|
-| `clientes`     | Cadastro de clientes (`id`, `nome`, `email`, `cidade`, `criado_em`) |
-| `produtos`     | Catálogo digital (`id`, `nome`, `categoria`, `preco`, `estoque`) |
-| `pedidos`      | Cabeçalho do pedido com FK para `clientes` e `status`       |
-| `itens_pedido` | Itens vendidos com FKs para `pedidos` e `produtos`          |
+- Criacao de tabelas com `PRIMARY KEY`, `FOREIGN KEY`, `NOT NULL`, `UNIQUE` e `CHECK`
+- Consultas com `INNER JOIN` e `LEFT JOIN`
+- Filtros com `WHERE` parametrizado e `LOWER()`
+- Agrupamentos com `GROUP BY` e funcoes `COUNT`, `SUM`, `AVG` e `ROUND`
+- Filtro pos-agrupamento com `HAVING`
+- Subconsulta (`Subquery`) para comparar precos com a media geral
+- `CTE (WITH)` combinada com `CASE WHEN` e `COALESCE` para classificar desempenho de vendas
+- `VIEW` (`resumo_pedidos`) para consolidar o total de itens e valor de cada pedido
 
-### Conceitos SQL Implementados
+## Como Executar
 
-- ✅ **DDL & DML**: `CREATE TABLE`, `DROP TABLE`, `INSERT INTO`, constraints `CHECK`, `NOT NULL`, `UNIQUE`, `PRIMARY KEY` e `FOREIGN KEY`
-- ✅ **Filtros e Strings**: `WHERE`, `LOWER()` e parâmetros `?` contra SQL Injection
-- ✅ **Junções (`JOIN`)**: `INNER JOIN` entre 3 tabelas e `LEFT JOIN` para produtos sem vendas
-- ✅ **Agregações e Agrupamento**: `GROUP BY`, `COUNT`, `SUM`, `AVG`, `ROUND`
-- ✅ **Filtro Pós-Agregação (`HAVING`)**: clientes que superaram uma meta financeira
-- ✅ **Subconsulta (`Subquery`)**: produtos com preço acima da média geral do catálogo
-- ✅ **CTE (`WITH`) + `CASE WHEN` + `COALESCE`**: classificação de desempenho de vendas por faixa de receita
-- ✅ **`VIEW` (`resumo_pedidos`)**: visão consolidada de pedidos com total de itens e valor total
-
----
-
-## ▶️ Como Configurar e Rodar
-
-### 1. Clonar o repositório e criar o ambiente virtual
+### 1. Clonar o repositorio e ativar o ambiente virtual
 
 ```bash
-git clone <URL-DO-SEU-REPOSITORIO>
+git clone <URL_DO_REPOSITORIO>
 cd desafio-engenharia-dados-jr
 
-# Criar e ativar o ambiente virtual (.venv)
 python3 -m venv .venv
-source .venv/bin/activate   # Linux/macOS
-# .venv\Scripts\activate    # Windows
+source .venv/bin/activate
 ```
 
-### 2. Instalar dependências de desenvolvimento (opcional para testes/lint)
+No Windows, ative com:
+```bash
+.venv\Scripts\activate
+```
+
+### 2. Instalar dependencias (opcional, usado para rodar os testes)
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Executar a aplicação
+### 3. Iniciar a aplicacao
 
 ```bash
 python src/main.py
 ```
 
----
-
-## 📋 Menu Interativo no Terminal
+## Opcoes do Menu
 
 ```text
-═══════════════════════════════════════════════════════
-  🛒  LOJA DIGITAL — PAINEL DE RELATÓRIOS
-═══════════════════════════════════════════════════════
-  [1] 📦 Listar todos os produtos
-  [2] 🔍 Filtrar produtos por categoria
-  [3] 👥 Listar clientes cadastrados
-  [4] 🧾 Pedidos detalhados (via View SQL)
-  [5] 🏆 Ranking: produtos mais vendidos
-  [6] 💰 Faturamento por categoria
-  [7] ⭐ Clientes por volume de compras
-  [8] 🎯 Clientes acima de meta   [HAVING]
-  [9] 📊 Produtos acima da média  [Subquery]
-  [A] 🧠 Desempenho dos produtos  [CTE + CASE WHEN]
-  [0] Sair
+=======================================================
+  LOJA DIGITAL - PAINEL DE RELATORIOS
+=======================================================
+  [ 1] Listar todos os produtos
+  [ 2] Filtrar produtos por categoria
+  [ 3] Listar clientes cadastrados
+  [ 4] Pedidos detalhados (View SQL)
+  [ 5] Ranking de produtos mais vendidos
+  [ 6] Faturamento por categoria
+  [ 7] Clientes por volume de compras
+  [ 8] Clientes acima de meta (HAVING)
+  [ 9] Produtos acima da media (Subquery)
+  [10] Desempenho dos produtos (CTE + CASE WHEN)
+  [ 0] Sair
+-------------------------------------------------------
 ```
 
----
+## Testes Automatizados
 
-## 🧪 Testes Automatizados e Qualidade de Código (Bônus)
-
-Os testes utilizam um banco SQLite em memória (`:memory:`), garantindo rapidez e isolamento sem alterar o arquivo `loja_digital.db`:
+Os testes utilizam um banco SQLite em memoria (`:memory:`) para validar todas as consultas do modulo `queries.py` sem alterar o banco local:
 
 ```bash
-# Executar os 10 testes unitários
 pytest -v
-
-# Verificar padronização PEP8 com Ruff
-ruff check src/ tests/
 ```
 
----
+## Autora
 
-## 🛡️ Boas Práticas de Engenharia de Dados
-
-- **Modularização**: separação clara entre persistência (`database.py`), consultas (`queries.py`), visualização (`relatorios.py`) e orquestração (`main.py`).
-- **Tratamento de Erros (`try/except`)**: proteção na abertura de conexão, leitura de scripts `.sql`, entradas do usuário e interrupção via teclado (`Ctrl+C`).
-- **Segurança**: todas as entradas de usuário utilizam queries parametrizadas (`?`).
-- **Git Workflow**: desenvolvimento em branch dedicada (`feature/loja-digital`) com histórico de commits semânticos e progressivos.
-
----
-
-## 👩‍💻 Autora
-
-Desenvolvido por **Nayane Araújo** como projeto final da Trilha de Engenharia de Dados JR.
+Nayane Araujo
