@@ -5,6 +5,8 @@
 ![SQLite 3](https://img.shields.io/badge/Database-SQLite%203-003B57)
 ![Code Style: Ruff](https://img.shields.io/badge/Code%20Style-Ruff-261230)
 
+**Autora:** Nayane Araujo · **Repositório GitHub:** [github.com/Nayanearaujo/desafio-engenharia-dados-jr](https://github.com/Nayanearaujo/desafio-engenharia-dados-jr) · **LinkedIn:** [linkedin.com/in/nayane-oaraujo](https://www.linkedin.com/in/nayane-oaraujo) · **Portfólio:** [nayanearaujo.github.io](https://nayanearaujo.github.io/)
+
 ## 1. Sobre o Projeto e Tecnologias Utilizadas
 
 Neste projeto, construí e evoluí um pipeline de dados ponta a ponta e um painel analítico para a **Loja Digital**, um e-commerce de produtos digitais voltado à área de tecnologia (cursos, e-books e templates).
