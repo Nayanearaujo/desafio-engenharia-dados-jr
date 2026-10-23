@@ -1,6 +1,6 @@
 # Loja Digital: Pipeline em Arquitetura Medalha e Controle Estatístico de Processo
 
-![CI - Qualidade e Testes](https://github.com/Nayanearaujo/desafio-engenharia-dados-jr/actions/workflows/ci.yml/badge.svg)
+[![CI - Qualidade e Testes](https://github.com/Nayanearaujo/desafio-engenharia-dados-jr/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Nayanearaujo/desafio-engenharia-dados-jr/actions/workflows/ci.yml)
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue)
 ![SQLite 3](https://img.shields.io/badge/Database-SQLite%203-003B57)
 ![Code Style: Ruff](https://img.shields.io/badge/Code%20Style-Ruff-261230)
@@ -105,13 +105,18 @@ erDiagram
 > **Reprodutibilidade e Contrato de Status**: todos os números abaixo foram gerados deterministicamente com **semente `42`, Python `3.11.4` e Faker `40.43.0`**.  
 > Todos os **KPIs financeiros e de clientes da camada Gold** (`Receita Paga`, `Ticket Médio Pago`, `LTV Médio Pago`, `Receita Mensal MoM`, `Matriz RFM`, `Coorte`, `Taxa de Recompra`, `Pareto Gold` e `Carta de Controle`) filtram estritamente **`status = 'pago'`**, garantindo reconciliação aritmética exata entre todos os painéis. As consultas operacionais legadas da camada Silver (opções 4, 6, 7, 10 e 11 do menu original) mantêm o filtro `status != 'cancelado'` (`pago + pendente = R$ 2.635.945,00`) para preservar o comportamento original dos testes.
 
-- **Receita Confirmada e Conversão**: **R$ 2.248.527,00** em **3.830 pedidos pagos** (taxa de conversão de **76,6%** sobre os 5.000 pedidos válidos; **690 pedidos pendentes** somam R$ 387.418,00 e **480 cancelados** representam **9,6%**).
-- **Ticket Médio Pago e LTV Pago**:
-  - `Ticket Médio Pago` = `R$ 2.248.527,00 ÷ 3.830 pedidos pagos` = **R$ 587,08**
-  - `LTV Médio Pago` = `R$ 2.248.527,00 ÷ 198 clientes pagantes` = **R$ 11.356,20** *(2 dos 200 clientes válidos possuem apenas pedidos pendentes/cancelados).*
-- **Curva de Pareto 80/20 (sobre Receita Paga)**: **4 dos 30 produtos (13,3% do catálogo)** concentram **80,8% da receita paga** (`R$ 1.816.299,00` de `R$ 2.248.527,00`).
-- **Sazonalidade e Crescimento Mensal (MoM e MM3M)**: os 12 meses de receita paga somam exatamente **R$ 2.248.527,00**, atingindo o pico em **junho de 2026 (`2026-06`) com R$ 366.076,00** (média móvel trimestral de R$ 324.870,33).
-- **Matriz RFM e Recompra**: a taxa de recompra entre clientes pagantes é de **82,8%** (`164` recorrentes em `198` compradores). A soma dos 4 segmentos fecha em **R$ 2.248.527,00**: **Campeões** (`63` clientes | **R$ 1.346.807,00** | **59,9%**), **Inativos** (`96` clientes | **R$ 440.472,00** | **19,6%**), **Leais** (`30` clientes | **R$ 376.465,00** | **16,7%**) e **Em risco** (`9` clientes | **R$ 84.783,00** | **3,8%**).
+| Indicador Executivo (Camada Gold) | Fórmula / Base de Cálculo (`status = 'pago'`) | Valor Reconciliado |
+|---|---|---:|
+| **Receita Paga Confirmada** | Soma dos itens de `3.830` pedidos pagos (`76,6%` de conversão) | **R$ 2.248.527,00** |
+| **Ticket Médio Pago** | `R$ 2.248.527,00 ÷ 3.830 pedidos pagos` | **R$ 587,08** |
+| **LTV Médio Pago** | `R$ 2.248.527,00 ÷ 198 clientes pagantes` | **R$ 11.356,20** |
+| **Taxa de Recompra (Pagantes)** | `164 clientes recorrentes (≥ 2 compras pagas) ÷ 198 pagantes` | **82,8%** |
+| **Curva de Pareto 80/20** | `4 de 30 produtos (13,3%)` somam `R$ 1.816.299,00` | **80,8% da receita paga** |
+| **Pico Sazonal Mensal (`2026-06`)** | Maior faturamento mensal pago (MM3M de `R$ 324.870,33`) | **R$ 366.076,00** |
+| **Dispersão de Curto Prazo ($\hat{\sigma}_{IMR}$)** | Amplitude móvel dos resíduos (`R$ 2.882,94 ÷ 1,128`) | **R$ 2.555,79** |
+
+- **Receita Pendente e Cancelamentos**: além dos `3.830` pedidos pagos, a base válida possui **690 pedidos pendentes** (`R$ 387.418,00` / `13,8%`) e **480 pedidos cancelados** (`9,6%`). *(2 dos 200 clientes válidos possuem apenas pedidos pendentes/cancelados).*
+- **Matriz RFM (100% reconciliada com a Receita Paga)**: a soma dos 4 segmentos fecha exatamente em **R$ 2.248.527,00**: **Campeões** (`63` clientes | **R$ 1.346.807,00** | **59,9%**), **Inativos** (`96` clientes | **R$ 440.472,00** | **19,6%**), **Leais** (`30` clientes | **R$ 376.465,00** | **16,7%**) e **Em risco** (`9` clientes | **R$ 84.783,00** | **3,8%**).
 - **Controle Estatístico de Processo (Carta I-MR Dessazonalizada)**: como a série diária possui sazonalidade acentuada, uma carta de Shewhart estática usando o desvio-padrão amostral global ($s = 4.589{,}17\text{ BRL}$) inflaria os limites e mascararia anomalias fora do pico. Para tratar a não-estacionariedade, extraí a tendência sazonal via média móvel centrada de 15 dias ($\hat{T}_t$) e apliquei sobre os resíduos ($e_t = y_t - \hat{T}_t$) o estimador de curto prazo por **Amplitude Móvel (Carta I-MR)**:
   $$\hat{\sigma}_{IMR} = \frac{\overline{MR}}{d_2} = \frac{2.882{,}94}{1{,}128} = 2.555{,}79\text{ BRL}$$
   Com a banda dinâmica $\hat{T}_t \pm 3\hat{\sigma}_{IMR}$, o modelo detecta exatamente os **2 dias com causas especiais sintéticas injetadas na simulação**: `2026-02-28` (`R$ 14.041,00`, $Z = +3{,}16\sigma$) e `2026-07-04` (`R$ 40.227,00`, $Z = +10{,}58\sigma$).
@@ -194,6 +199,39 @@ python src/main.py
 python src/main.py --demo
 ```
 
+<details>
+<summary><strong>Ver as 20 opções do menu interativo no terminal (1 a 14 originais + 15 a 20 Arquitetura Medalha)</strong></summary>
+
+```text
+==============================================================
+  LOJA DIGITAL - PAINEL DE RELATORIOS E ARQUITETURA MEDALHA
+==============================================================
+  [ 1] Listar todos os produtos
+  [ 2] Filtrar produtos por categoria
+  [ 3] Listar clientes cadastrados
+  [ 4] Pedidos detalhados (View SQL)
+  [ 5] Ranking de produtos mais vendidos
+  [ 6] Faturamento por categoria
+  [ 7] Clientes por volume de compras
+  [ 8] Clientes acima de meta (HAVING)
+  [ 9] Produtos acima da media (Subquery)
+  [10] Desempenho dos produtos (CTE + CASE WHEN)
+  [11] KPIs executivos e Curva de Pareto (Window Function)
+  [12] Cadastrar novo produto
+  [13] Gerar Dashboard Executivo (Matplotlib)
+  [14] Automatizar exportacao analitica (CSV)
+  [15] Executar pipeline Medalha (Bronze -> Silver -> Gold)
+  [16] Relatorio de qualidade e quarentena (Silver)
+  [17] Receita mensal, MoM e media movel 3M (Gold)
+  [18] Segmentacao RFM de clientes (Gold)
+  [19] Taxa de recompra e retencao por coorte (Gold)
+  [20] Cancelamentos e Carta de Controle I-MR (Gold)
+  [ 0] Sair
+--------------------------------------------------------------
+```
+
+</details>
+
 ---
 
 ## 8. Estrutura de Pastas
@@ -270,4 +308,5 @@ ruff check src/ tests/
 
 ## 12. Autora
 
-Nayane Araujo · [LinkedIn](https://www.linkedin.com/in/nayane-oaraujo) · [Portfólio](https://nayanearaujo.github.io/) · [GitHub](https://github.com/Nayanearaujo)
+**Nayane Araujo** | Engenheira Química | Mestre em Data Analytics | Especialista em Qualidade e Lean Six Sigma  
+[LinkedIn](https://www.linkedin.com/in/nayane-oaraujo) · [Portfólio](https://nayanearaujo.github.io/) · [GitHub](https://github.com/Nayanearaujo)
