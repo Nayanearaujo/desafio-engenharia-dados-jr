@@ -3,30 +3,29 @@
 ![CI - Qualidade e Testes](https://github.com/Nayanearaujo/desafio-engenharia-dados-jr/actions/workflows/ci.yml/badge.svg)
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue)
 ![SQLite 3](https://img.shields.io/badge/Database-SQLite%203-003B57)
-![Cobertura de Testes](https://img.shields.io/badge/Cobertura-88%25-brightgreen)
 ![Code Style: Ruff](https://img.shields.io/badge/Code%20Style-Ruff-261230)
 
 ## 1. Sobre o Projeto e Contexto de Negócio
 
-Neste projeto, construí e evoluí uma plataforma analítica e um pipeline de engenharia de dados para a **Loja Digital**, um e-commerce de infoprodutos voltado à área de tecnologia (cursos, e-books e templates).
+Neste projeto, construí e evoluí um pipeline de dados e um painel analítico para a **Loja Digital**, um e-commerce de produtos digitais voltado à área de tecnologia (cursos, e-books e templates).
 
-A versão inicial do repositório atendia aos requisitos do Desafio Final da Trilha de Engenharia de Dados Júnior: um sistema em Python e SQLite com menu interativo no terminal (opções 1 a 14), modelagem relacional, consultas SQL (JOINs, GROUP BY, HAVING, Subquery, CTE, Window Functions e View) e testes unitários.
+A versão inicial do repositório atendia aos requisitos do Desafio Final da Trilha de Engenharia de Dados Júnior: aplicação em Python e SQLite com menu interativo no terminal (opções 1 a 14), modelagem relacional, consultas SQL (JOINs, GROUP BY, HAVING, Subquery, CTE, Window Functions e View) e 14 testes unitários.
 
-Para aproximar a solução de um ambiente real de engenharia de dados sem perder a simplicidade de execução local, evoluí a aplicação implementando uma **Arquitetura Medalha (Bronze, Silver e Gold)** completa. O pipeline gera dados sintéticos determinísticos para um horizonte de 12 meses de operação (`5.000` pedidos válidos), realiza ingestão bruta auditável, aplica regras formais de qualidade de dados com isolamento em tabela de quarentena (`silver_rejeitados`) e abastece uma camada analítica avançada com indicadores de crescimento mensal (MoM), segmentação RFM, retenção por coorte, Pareto 80/20 e **Controle Estatístico de Processo (Carta de Controle 3-Sigma)** inspirado na metodologia Lean Six Sigma.
+Para evoluir a solução mantendo a simplicidade de execução local e 100% de compatibilidade com o código existente, implementei uma **Arquitetura Medalha (Bronze, Silver e Gold)**. O pipeline gera dados sintéticos determinísticos para 12 meses de operação (`5.000` pedidos válidos), realiza ingestão bruta espelhada do CSV, aplica regras de validação com quarentena em `silver_rejeitados` e constrói uma camada Gold com indicadores de crescimento mensal (MoM), segmentação RFM, retenção por coorte, Pareto 80/20 e **Controle Estatístico de Processo (Carta I-MR ajustada para sazonalidade)** a partir da metodologia Lean Six Sigma.
 
 ---
 
 ## 2. Arquitetura Medalha (Bronze, Silver e Gold)
 
-O fluxo de dados segue sentido único (`Bronze -> Silver -> Gold`), garantindo idempotência (executar o pipeline múltiplas vezes produz exatamente as mesmas contagens, sem duplicação) e rastreabilidade ponta a ponta via `logging`.
+O fluxo de dados segue sentido único (`Bronze -> Silver -> Gold`), com execução idempotente (rodar o pipeline duas vezes em modo full refresh produz exatamente as mesmas contagens, sem duplicar registros) e logs operacionais de contagem por etapa.
 
 ```mermaid
 flowchart LR
     subgraph Geracao["1. Fonte Sintetica (Faker pt_BR)"]
-        F["gerar_dados.py\nSemente fixa = 42\n~1,5% anomalias injetadas"] --> CSV["data/raw/*.csv\nclientes, produtos,\npedidos, itens_pedido"]
+        F["gerar_dados.py\nSemente fixa = 42\n1,18% anomalias no total"] --> CSV["data/raw/*.csv\nclientes, produtos,\npedidos, itens_pedido"]
     end
 
-    subgraph Bronze["2. Camada Bronze (Dado Bruto Imutavel)"]
+    subgraph Bronze["2. Camada Bronze (Espelho Bruto Full Refresh)"]
         CSV --> B1["bronze_clientes (205)"]
         CSV --> B2["bronze_produtos (34)"]
         CSV --> B3["bronze_pedidos (5.075)"]
@@ -36,12 +35,12 @@ flowchart LR
     subgraph Silver["3. Camada Silver (Validacao e Quarentena)"]
         B1 & B2 & B3 & B4 --> Q{"qualidade.py\nRegras de Dominio,\nTipagem e FKs"}
         Q -->|"Registros Validos (12.050)"| S["Tabelas Tipadas Silver\nclientes (200) | produtos (30)\npedidos (5.000) | itens_pedido (6.820)"]
-        Q -->|"Registros Invalidos (144)"| R["silver_rejeitados\nQuarentena auditavel\npor tabela e motivo"]
+        Q -->|"Registros Invalidos (144)"| R["silver_rejeitados\nQuarentena por\ntabela e motivo"]
     end
 
     subgraph Gold["4. Camada Gold (Analytics e Negocio)"]
-        S --> G1["Views Analiticas SQL\ngold_receita_mensal | gold_rfm_clientes\ngold_coorte_retencao | gold_pareto_produtos"]
-        S --> G2["Controle de Processo (Pandas)\nCarta de Controle 3-Sigma\nda Receita Diaria"]
+        S --> G1["Views Analiticas SQL (status = pago)\ngold_receita_mensal | gold_rfm_clientes\ngold_coorte_retencao | gold_pareto_produtos"]
+        S --> G2["Controle de Processo (Pandas)\nCarta I-MR Dessazonalizada\n(sigma_IMR = MR_barra / 1,128)"]
         G1 & G2 --> OUT["Entregas Executivas\nDashboard PNG | 11 CSVs em exports/\nMenu Interativo (Opcoes 1 a 20)"]
     end
 ```
@@ -50,7 +49,7 @@ flowchart LR
 
 ## 3. Modelo de Dados Relacional (Camada Silver)
 
-Na camada Silver, o SQLite opera com `PRAGMA foreign_keys = ON`, restrições de domínio (`CHECK`, `NOT NULL`, `UNIQUE`) e tipagem forte. Os registros que violam qualquer regra na transição Bronze para Silver são desviados para `silver_rejeitados` contendo o payload JSON original e o motivo exato da rejeição.
+Na camada Silver, o SQLite opera com `PRAGMA foreign_keys = ON`, restrições de domínio (`CHECK`, `NOT NULL`, `UNIQUE`) e tipagem definida. Os registros que violam qualquer regra na transição Bronze para Silver são desviados para `silver_rejeitados` com o payload JSON original e o motivo da rejeição.
 
 ```mermaid
 erDiagram
@@ -101,30 +100,35 @@ erDiagram
 
 ---
 
-## 4. Principais Insights de Negócio (Camada Gold)
+## 4. Principais Insights e Reconciliação de KPIs (Camada Gold)
 
-Todos os números abaixo são extraídos diretamente da execução determinística do pipeline (`python src/main.py --pipeline`, semente `42`):
+> **Reprodutibilidade e Contrato de Status**: todos os números abaixo foram gerados deterministicamente com **semente `42`, Python `3.11.4` e Faker `40.43.0`**.  
+> Todos os **KPIs financeiros e de clientes da camada Gold** (`Receita Paga`, `Ticket Médio Pago`, `LTV Médio Pago`, `Receita Mensal MoM`, `Matriz RFM`, `Coorte`, `Taxa de Recompra`, `Pareto Gold` e `Carta de Controle`) filtram estritamente **`status = 'pago'`**, garantindo reconciliação aritmética exata entre todos os painéis. As consultas operacionais legadas da camada Silver (opções 4, 6, 7, 10 e 11 do menu original) mantêm o filtro `status != 'cancelado'` (`pago + pendente = R$ 2.635.945,00`) para preservar o comportamento original dos testes.
 
-- **Receita Confirmada (Pedidos Pagos)**: **R$ 2.248.527,00** gerados em **3.830 pedidos pagos** (taxa de conversão de **76,6%** sobre os 5.000 pedidos válidos; **14,2%** pendentes e **9,2%** cancelados).
-- **Ticket Médio e LTV**: ticket médio de **R$ 583,43** por pedido pago e Lifetime Value (LTV) médio de **R$ 13.179,73** por cliente ativo.
-- **Concentração de Receita (Curva de Pareto 80/20)**: apenas **4 dos 30 produtos (13,3% do catálogo)** concentram **80,3% de todo o faturamento** da loja, liderados por *Formacao Completa Engenharia de Dados* (36,6% de share) e *Bootcamp Arquitetura Medalha e Lakehouse* (23,4% de share).
-- **Sazonalidade e Crescimento Mensal (MoM e MM3M)**: a série histórica de 12 meses (nov/2025 a out/2026) atinge seu ponto máximo em **junho de 2026 (`2026-06`) com R$ 432.293,00** em vendas e média móvel trimestral estabilizada acima de R$ 405 mil entre maio e julho.
-- **Matriz RFM e Fidelização**: a taxa de recompra global é de **82,0%** (164 clientes recorrentes em 200 clientes ativos). O segmento **Campeões** (alta recência, frequência e valor) responde sozinho por **60,2% da receita total (R$ 1.587.171,00)**.
-- **Controle Estatístico de Processo (Carta de Controle 3-Sigma)**: trazendo a disciplina do **Lean Six Sigma** para a engenharia de dados, implementei uma carta de controle sobre a receita diária paga ($\mu \pm 3\sigma$) para separar variações comuns de causas especiais (como picos de lançamento ou falhas de gateway), identificando automaticamente **1 dia fora do limite superior de controle (LSC de R$ 23.278,00)** com faturamento atípico de **R$ 41.482,00**.
+- **Receita Confirmada e Conversão**: **R$ 2.248.527,00** em **3.830 pedidos pagos** (taxa de conversão de **76,6%** sobre os 5.000 pedidos válidos; **690 pedidos pendentes** somam R$ 387.418,00 e **480 cancelados** representam **9,6%**).
+- **Ticket Médio Pago e LTV Pago**:
+  - $\text{Ticket Médio Pago} = \frac{\text{R\$ } 2.248.527,00}{3.830 \text{ pedidos pagos}} = \mathbf{\text{R\$ } 587,08}$
+  - $\text{LTV Médio Pago} = \frac{\text{R\$ } 2.248.527,00}{198 \text{ clientes pagantes}} = \mathbf{\text{R\$ } 11.356,20}$ *(2 dos 200 clientes válidos possuem apenas pedidos pendentes/cancelados).*
+- **Curva de Pareto 80/20 (sobre Receita Paga)**: **4 dos 30 produtos (13,3% do catálogo)** concentram **80,8% da receita paga** (`R$ 1.816.299,00` de `R$ 2.248.527,00`).
+- **Sazonalidade e Crescimento Mensal (MoM e MM3M)**: os 12 meses de receita paga somam exatamente **R$ 2.248.527,00**, atingindo o pico em **junho de 2026 (`2026-06`) com R$ 366.076,00** (média móvel trimestral de R$ 324.870,33).
+- **Matriz RFM e Recompra**: a taxa de recompra entre clientes pagantes é de **82,8%** (`164` recorrentes em `198` compradores). A soma dos 4 segmentos fecha em **R$ 2.248.527,00**: **Campeões** (`63` clientes | **R$ 1.346.807,00** | **59,9%**), **Inativos** (`96` clientes | **R$ 440.472,00** | **19,6%**), **Leais** (`30` clientes | **R$ 376.465,00** | **16,7%**) e **Em risco** (`9` clientes | **R$ 84.783,00** | **3,8%**).
+- **Controle Estatístico de Processo (Carta I-MR Dessazonalizada)**: como a série diária possui sazonalidade acentuada, uma carta de Shewhart estática usando o desvio-padrão amostral global ($s = \text{R\$ } 4.589,17$) inflaria os limites e mascararia anomalias fora do pico. Para tratar a não-estacionariedade, extraí a tendência sazonal via média móvel centrada de 15 dias ($\hat{T}_t$) e apliquei sobre os resíduos ($e_t = y_t - \hat{T}_t$) o estimador de curto prazo por **Amplitude Móvel (Carta I-MR)**:
+  $$\hat{\sigma}_{IMR} = \frac{\overline{MR}}{d_2} = \frac{\text{R\$ } 2.882,94}{1,128} = \mathbf{\text{R\$ } 2.555,79}$$
+  Com a banda dinâmica $\hat{T}_t \pm 3\hat{\sigma}_{IMR}$, o modelo detecta exatamente os **2 dias com causas especiais sintéticas injetadas na simulação**: `2026-02-28` (`R$ 14.041,00`, $Z = +3,16\sigma$) e `2026-07-04` (`R$ 40.227,00`, $Z = +10,58\sigma$).
 
 ---
 
 ## 5. Dashboard Executivo
 
-O painel abaixo é gerado automaticamente em `assets/dashboard_executivo.png` ao rodar o pipeline ou a opção `13` do menu:
+O painel abaixo é gerado automaticamente em `assets/dashboard_executivo.png` ao rodar `python src/main.py --pipeline` ou a opção `13` do menu:
 
 ![Dashboard Executivo](assets/dashboard_executivo.png)
 
 ---
 
-## 6. Qualidade de Dados e Quarentena (Camada Silver)
+## 6. Validação de Esquema e Quarentena de Dados (Camada Silver)
 
-O gerador sintético (`src/pipeline/gerar_dados.py`) injeta entre **1% e 3% de anomalias intencionais** nos arquivos CSV brutos para validar a resiliência da camada Silver (`src/pipeline/qualidade.py` e `src/pipeline/silver.py`). Nenhum registro inválido contamina as tabelas analíticas:
+O gerador sintético (`src/pipeline/gerar_dados.py`) injeta **144 registros inválidos em 12.194 linhas brutas (taxa global de 1,18%)**. Nas tabelas cadastrais menores (`produtos` e `clientes`), injetei ao menos um exemplo de cada violação de domínio para garantir cobertura de teste de todas as regras de `qualidade.py`, o que resulta em percentuais relativos maiores nessas duas tabelas pequenas (11,76% e 2,44%) e ~1% nas tabelas transacionais (`pedidos` com 1,48% e `itens_pedido` com 0,87%):
 
 | Camada / Tabela | Linhas Lidas (Bronze) | Linhas Válidas (Silver) | Linhas em Quarentena (`silver_rejeitados`) | Taxa de Rejeição |
 |---|---:|---:|---:|---:|
@@ -134,7 +138,8 @@ O gerador sintético (`src/pipeline/gerar_dados.py`) injeta entre **1% e 3% de a
 | `itens_pedido` | 6.880 | 6.820 | 60 | 0,87% |
 | **Total Geral** | **12.194** | **12.050** | **144** | **1,18%** |
 
-### Detalhamento dos 144 Registros Bloqueados por Regra de Qualidade
+<details>
+<summary><strong>Ver detalhamento dos 144 registros bloqueados por tabela e motivo (18 combinações)</strong></summary>
 
 | Tabela de Origem | Motivo da Rejeição (`motivo`) | Quantidade | Regra Aplicada em `qualidade.py` |
 |---|---|---:|---|
@@ -157,13 +162,13 @@ O gerador sintético (`src/pipeline/gerar_dados.py`) injeta entre **1% e 3% de a
 | `bronze_clientes` | `email_formato_invalido` | 1 | Expressão regular para sintaxe de e-mail |
 | `bronze_clientes` | `nulo_obrigatorio:nome` | 1 | Preenchimento obrigatório do nome do cliente |
 
-O relatório completo é exportado automaticamente para `exports/qualidade_rejeitados.csv` e pode ser consultado na opção `16` do menu.
+</details>
 
 ---
 
 ## 7. Como Executar
 
-### 1. Clonar o repositório e preparar o ambiente virtual
+### 1. Clonar o repositório e instalar dependências
 
 ```bash
 git clone https://github.com/Nayanearaujo/desafio-engenharia-dados-jr.git
@@ -174,7 +179,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-*(No Windows, ative o ambiente virtual com `.venv\Scripts\activate`.)*
+*(Para instalar também as ferramentas de teste e lint: `pip install -r requirements-dev.txt`. No Windows, ative com `.venv\Scripts\activate`.)*
 
 ### 2. Três modos de execução disponíveis
 
@@ -182,61 +187,29 @@ pip install -r requirements.txt
 # Modo 1: Executa o pipeline Medalha completo (Faker -> Bronze -> Silver -> Gold + CSVs + Dashboard PNG)
 python src/main.py --pipeline
 
-# Modo 2: Abre o menu interativo (opcoes 1 a 20) mantendo o banco atual
+# Modo 2: Abre o menu interativo (opcoes 1 a 20). Se o .db nao existir ainda, inicializa automaticamente com seed.sql e views Gold
 python src/main.py
 
-# Modo 3: Inicializa o banco com a carga rapida de demonstracao (sql/seed.sql) e abre o menu
+# Modo 3: Forca a reinicializacao rapida com o seed.sql de demonstracao e abre o menu
 python src/main.py --demo
-```
-
-### Menu Interativo Completo (Opções 1 a 20)
-
-As opções `1` a `14` originais foram integralmente preservadas, e as opções `15` a `20` adicionam a governança da Arquitetura Medalha e os novos KPIs da camada Gold:
-
-```text
-==============================================================
-  LOJA DIGITAL - PAINEL DE RELATORIOS E ARQUITETURA MEDALHA
-==============================================================
-  [ 1] Listar todos os produtos
-  [ 2] Filtrar produtos por categoria
-  [ 3] Listar clientes cadastrados
-  [ 4] Pedidos detalhados (View SQL)
-  [ 5] Ranking de produtos mais vendidos
-  [ 6] Faturamento por categoria
-  [ 7] Clientes por volume de compras
-  [ 8] Clientes acima de meta (HAVING)
-  [ 9] Produtos acima da media (Subquery)
-  [10] Desempenho dos produtos (CTE + CASE WHEN)
-  [11] KPIs executivos e Curva de Pareto (Window Function)
-  [12] Cadastrar novo produto
-  [13] Gerar Dashboard Executivo (Matplotlib)
-  [14] Automatizar exportacao analitica (CSV)
-  [15] Executar pipeline Medalha (Bronze -> Silver -> Gold)
-  [16] Relatorio de qualidade e quarentena (Silver)
-  [17] Receita mensal, MoM e media movel 3M (Gold)
-  [18] Segmentacao RFM de clientes (Gold)
-  [19] Taxa de recompra e retencao por coorte (Gold)
-  [20] Cancelamentos e Carta de Controle 3-Sigma (Gold)
-  [ 0] Sair
---------------------------------------------------------------
 ```
 
 ---
 
 ## 8. Estrutura de Pastas
 
+<details>
+<summary><strong>Ver árvore de arquivos do projeto</strong></summary>
+
 ```text
 desafio-engenharia-dados-jr/
-├── .github/
-│   └── workflows/
-│       └── ci.yml               # Pipeline de Integracao Continua (Ruff + Pytest + Coverage)
+├── .github/workflows/ci.yml     # Integracao Continua (Ruff + Pytest + Coverage)
 ├── assets/
 │   └── dashboard_executivo.png  # Painel visual 4-em-1 gerado via Matplotlib
-├── data/
-│   └── raw/                     # CSVs brutos gerados pelo Faker (ignorados no Git)
-├── exports/                     # 11 tabelas analiticas Gold e auditoria exportadas em CSV
+├── data/raw/                    # CSVs brutos gerados pelo Faker (ignorados no Git)
+├── exports/                     # 11 tabelas analiticas Gold e quarentena em CSV
 ├── sql/
-│   ├── bronze.sql               # DDL das tabelas brutas (bronze_*) com metadados de ingestao
+│   ├── bronze.sql               # DDL das tabelas brutas (full refresh) com metadados de ingestao
 │   ├── schema.sql               # DDL da camada Silver tipada + silver_rejeitados + view resumo_pedidos
 │   ├── gold.sql                 # Views analiticas Gold (MoM, RFM, Coorte, Cancelamentos, Pareto)
 │   └── seed.sql                 # Carga enxuta para testes unitarios e modo --demo
@@ -244,71 +217,62 @@ desafio-engenharia-dados-jr/
 │   ├── main.py                  # CLI com argparse (--pipeline, --demo) e menu interativo (1 a 20)
 │   ├── database.py              # Conexao SQLite (PRAGMA foreign_keys = ON) e execucao de scripts SQL
 │   ├── queries.py               # Consultas SQL parametrizadas (Silver e Gold)
-│   ├── relatorios.py            # Exibicao formatada no terminal, exportacao CSV e Dashboard Matplotlib
+│   ├── relatorios.py            # Exibicao no terminal, exportacao CSV e Dashboard Matplotlib
 │   └── pipeline/
-│       ├── __init__.py
 │       ├── gerar_dados.py       # Gerador sintetico Faker("pt_BR") com semente fixa (42)
-│       ├── bronze.py            # Ingestao bruta idempotente com _ingested_at e _source_file
+│       ├── bronze.py            # Carga bruta em modo full refresh com _ingested_at e _source_file
 │       ├── qualidade.py         # Regras puras de validacao de dominio, formato e FKs
-│       ├── silver.py            # Transformacao Silver, quarentena e logging de linhagem
-│       ├── gold.py              # Construcao de views Gold, Carta 3-Sigma em Pandas e exportacao
+│       ├── silver.py            # Transformacao Silver, quarentena e logs de contagem
+│       ├── gold.py              # Construcao de views Gold, Carta I-MR em Pandas e exportacao
 │       └── executar.py          # Orquestrador run_pipeline()
 ├── tests/
 │   ├── test_queries.py          # 14 testes originais das consultas SQL e KPIs base
 │   ├── test_qualidade.py        # 9 testes unitarios das regras de validacao e quarentena
-│   └── test_pipeline.py         # 7 testes integrados do pipeline Medalha, idempotencia e CLI
-├── .gitignore
+│   └── test_pipeline.py         # 7 testes integrados do pipeline Medalha, reconciliacao e CLI
+├── pyproject.toml
 ├── requirements.txt
+├── requirements-dev.txt
 └── README.md
 ```
+
+</details>
 
 ---
 
 ## 9. Testes Automatizados e Qualidade de Código
 
-A suíte automatizada conta com **30 testes** distribuídos em 3 módulos (`tests/test_queries.py`, `tests/test_qualidade.py` e `tests/test_pipeline.py`), atingindo **88% de cobertura de código** em `src/` (acima da meta de 85%) e verificação estática limpa com `ruff`:
+A suíte automatizada conta com **30 testes** (`tests/test_queries.py`, `tests/test_qualidade.py` e `tests/test_pipeline.py`), atingindo **88% de cobertura** em `src/` e verificação estática limpa com `ruff`, validados automaticamente a cada push e Pull Request via GitHub Actions:
 
 ```bash
-# Executar todos os testes com relatorio de cobertura
 pytest --cov=src --cov-report=term-missing -v
-
-# Verificar padrao de codigo e linting
 ruff check src/ tests/
 ```
 
 ---
 
-## 10. Decisões Técnicas
+## 10. Decisões Técnicas e Limitações
 
-1. **Prefixos de camada (`bronze_*`, `silver_rejeitados`, `gold_*`) no SQLite**: como o SQLite trabalha com arquivo único sem múltiplos schemas nativos no estilo Postgres, adotei o padrão de prefixos por camada mantendo os nomes originais (`clientes`, `produtos`, `pedidos`, `itens_pedido` e `resumo_pedidos`) na camada Silver/Gold para preservar 100% de compatibilidade com os testes e relatórios legados.
-2. **Idempotência por transação controlada**: cada camada limpa e recarrega seus registros dentro de transações atômicas respeitando a hierarquia de chaves estrangeiras (`itens_pedido -> pedidos -> clientes/produtos`), permitindo reprocessamentos seguros sem duplicar dados.
-3. **Cálculo do Desvio-Padrão Amostral em Pandas na Camada Gold**: o SQLite nativo não possui a função agregada `STDDEV()`. Em vez de criar extensões C ou cálculos aproximados em SQL, deleguei o cálculo estatístico da Carta de Controle 3-Sigma para o `pandas` em `src/pipeline/gold.py` sobre a série agregada do SQLite, combinando o melhor de SQL e Python.
-4. **Arquivos `data/raw/*.csv` e `exports/*.csv` no `.gitignore`**: para manter o repositório enxuto e evitar diffs desnecessários de milhares de linhas CSV, os dados brutos e exportações são gerados deterministicamente via `semente=42` em tempo de execução.
-
----
-
-## 11. Limitações e Próximos Passos
-
-- **Processamento em lote completo (Full Refresh)**: atualmente a transição Bronze para Silver reprocessa a janela completa de 12 meses. O próximo passo natural é implementar carga incremental por partição de data (`_ingested_at` / watermark).
-- **Banco local embarcado**: o SQLite atende muito bem volumes de dezenas de milhares de registros locais, mas para concorrência de escrita e escala analítica em nuvem a evolução planejada é migrar a camada analítica para **DuckDB** ou **PostgreSQL** mantendo os contratos SQL.
-- **Orquestração externa**: encapsular a chamada `python src/main.py --pipeline` em uma DAG do Apache Airflow ou Prefect com alertas automatizados caso a taxa de rejeição em `silver_rejeitados` ultrapasse o limite de controle de 3%.
+1. **Prefixos de camada (`bronze_*`, `silver_rejeitados`, `gold_*`) no SQLite**: como o SQLite opera em arquivo único sem múltiplos schemas independentes, utilizei prefixos por camada mantendo os nomes originais (`clientes`, `produtos`, `pedidos`, `itens_pedido` e `resumo_pedidos`) na camada Silver para preservar compatibilidade total com os testes originais.
+2. **Camada Bronze em Full Refresh vs. Append Imutável**: nesta implementação local, o `sql/bronze.sql` recria as tabelas brutas a cada execução (`DROP TABLE IF EXISTS`), espelhando fielmente os CSVs de entrada sem tipagem ou filtragem. Em produção, o próximo passo é substituir o full refresh por ingestão incremental append-only particionada por `_ingested_at`.
+3. **Ajuste Sazonal e Carta I-MR em Pandas**: o SQLite nativo não possui funções agregadas de desvio-padrão ou janela móvel centrada com `diff()`. Além disso, o desvio-padrão amostral direto ($s$) sobre uma série sazonal superestima a dispersão natural do processo. O cálculo em `pandas` permitiu combinar decomposição por média móvel centrada (15 dias) com o estimador $\hat{\sigma}_{IMR} = \overline{MR}/1,128$.
 
 ---
 
-## 12. Habilidades Demonstradas
+## 11. Habilidades Demonstradas
 
-- **Engenharia de Dados e ETL/ELT**: desenho e implementação de Arquitetura Medalha (Bronze, Silver, Gold), ingestão idempotente, metadados de auditoria (`_ingested_at`, `_source_file`) e rastreabilidade com `logging`.
-- **Qualidade e Governança de Dados**: validação programática de esquemas, integridade referencial, detecção de anomalias e isolamento em tabela de quarentena (`silver_rejeitados`).
-- **SQL Analítico Avançado**: `CTE (WITH)`, `Window Functions` (`LAG()`, `RANK()`, `SUM() OVER` com frame móvel `ROWS BETWEEN 2 PRECEDING AND CURRENT ROW`), `VIEWs`, `Subqueries`, `HAVING` e `CASE WHEN`.
-- **Analytics e Controle Estatístico de Processo (Lean Six Sigma)**: análise de Pareto 80/20, segmentação RFM, análise de retenção por coorte, crescimento MoM e Carta de Controle 3-Sigma ($\mu \pm 3\sigma$).
-- **Engenharia de Software para Dados**: testes automatizados com `pytest` e `pytest-cov` (88% de cobertura), linting com `ruff`, CLI com `argparse` e Integração Contínua com **GitHub Actions**.
+- **Engenharia de Dados e ETL/ELT**: implementação de Arquitetura Medalha (Bronze, Silver, Gold), carga idempotente, metadados de ingestão (`_ingested_at`, `_source_file`) e logs operacionais de contagem por camada.
+- **Validação de Esquema e Quarentena de Dados**: validação programática de domínio, integridade referencial, detecção de anomalias e isolamento em tabela de quarentena (`silver_rejeitados`).
+- **SQL Analítico**: `CTE (WITH)`, `Window Functions` (`LAG()`, `RANK()`, `NTILE(4)`, `SUM() OVER` e `AVG() OVER` com frame móvel), `VIEWs`, `Subqueries`, `HAVING` e `CASE WHEN`.
+- **Analytics e Controle Estatístico de Processo (Lean Six Sigma)**: Curva de Pareto 80/20, segmentação RFM, retenção por coorte, crescimento MoM e Carta de Controle de Indivíduos e Amplitude Móvel (I-MR) sobre resíduos dessazonalizados.
+- **Engenharia de Software para Dados**: testes automatizados com `pytest` e `pytest-cov`, linting com `ruff`, CLI com `argparse` e Integração Contínua com **GitHub Actions**.
 
 ---
 
-## 13. Autora
+## 12. Autora
 
-**Nayane Araújo**  
+**Nayane Araujo**  
 Engenheira Química | Mestre em Data Analytics | Especialista em Qualidade e Lean Six Sigma em transição para Engenharia de Dados
 
+- **LinkedIn**: [linkedin.com/in/nayane-oaraujo](https://www.linkedin.com/in/nayane-oaraujo)
 - **GitHub**: [github.com/Nayanearaujo](https://github.com/Nayanearaujo)
 - **Repositório do Projeto**: [github.com/Nayanearaujo/desafio-engenharia-dados-jr](https://github.com/Nayanearaujo/desafio-engenharia-dados-jr)
